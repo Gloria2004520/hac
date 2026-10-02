@@ -31,6 +31,12 @@ def delete_file(object_key: str) -> None:
             raise ValueError("视频存储路径不是文件")
         path.unlink()
 
+    # Optional subtitle cache belongs to the video and is removed with it.
+    if path.parent.parent.name == "videos":
+        cache = path.parent / "transcript.json"
+        if cache.is_file():
+            cache.unlink()
+
     videos_root = (settings.local_storage_root / "videos").resolve()
     parent = path.parent
     if parent != videos_root and videos_root in parent.parents:

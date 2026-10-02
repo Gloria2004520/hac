@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Readable } = require("node:stream");
 const { searchYoutubeForChat } = require("./chat-search.cjs");
+const { generateTutorial } = require("./tutorial.cjs");
 
 const root = __dirname;
 const envPath = path.join(root, "..", ".env");
@@ -143,6 +144,22 @@ const reply = (res, status, data) => {
 };
 
 http.createServer(async (req, res) => {
+  if (req.method === "POST" && req.url === "/api/tutorial") {
+    if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    if (busy) return reply(res, 429, { error: "上一条还在回答，请稍等" });
+    busy = true;
+    try {
+      let body;
+      try { body = JSON.parse(await readBody(req, 60000)); }
+      catch (error) { throw Object.assign(error, { status: error.status || 400 }); }
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw Object.assign(new Error('输入格式不正确'), { status: 400 });
+      const options = { backendUrl: videoBackendUrl };
+      const result = { tutorial: await generateTutorial(body, options) };
+      return reply(res, 200, result);
+    } catch (error) {
+      return reply(res, error.status || 502, { error: error.name === 'TimeoutError' ? '处理超时，请重试。草稿仍保留。' : error.message || '请求失败' });
+    } finally { busy = false; }
+  }
   if (req.method === "POST" && req.url === "/api/chat") {
     if (!requestIsSameOrigin(req)) {
       return reply(res, 403, { error: "不允许跨站请求" });
@@ -209,6 +226,10 @@ http.createServer(async (req, res) => {
   }
 
   const pathname = req.url.split("?")[0];
+  if (req.method === "GET" && ["/tutorial.js", "/tutorial-example.js", "/tutorial.css"].includes(pathname)) {
+    res.writeHead(200, { "Content-Type": pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    return fs.createReadStream(path.join(root, 'dist', pathname.slice(1))).pipe(res);
+  }
   const videoMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})$/);
   if (req.method === "GET" && videoMatch) {
     return proxyJson(res, `/api/videos/${videoMatch[1]}`);

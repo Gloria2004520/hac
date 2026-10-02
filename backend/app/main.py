@@ -15,6 +15,7 @@ from app.search import SearchBusy, SearchTimeout, SearchUpstreamError, search_yo
 from app.security import UnsafeURLError, validate_source_url
 from app.storage import delete_file, resolve_object
 from app.tasks import download_video
+from app.transcript import get_transcript
 
 
 @asynccontextmanager
@@ -196,6 +197,20 @@ def get_playback(video_id: str, db: Session = Depends(get_db)):
     if video.status != "ready" or not video.object_key:
         raise HTTPException(status_code=409, detail="视频尚未准备完成")
     return PlaybackRead(url=f"/api/videos/{video.id}/content")
+
+
+@app.post("/api/videos/{video_id}/transcript")
+def extract_transcript(video_id: str, db: Session = Depends(get_db)):
+    video = db.get(Video, video_id)
+    if video is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    try:
+        validate_source_url(video.source_url, settings.allowed_domains)
+        return get_transcript(video, settings, resolve_object)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
 
 
 @app.get("/api/videos/{video_id}/content")
