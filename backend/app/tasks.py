@@ -1,5 +1,7 @@
+import logging
 import mimetypes
 import re
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -15,6 +17,22 @@ from app.storage import save_file
 
 MEDIA_SUFFIXES = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
+logger = logging.getLogger("cookclip.tasks")
+
+
+def _schedule_breakdown(video_id: str) -> None:
+    """下载完顺手排一次分解。
+
+    这样用户点「一步步做」时通常已经拆好了。失败也没关系——那条路线是幂等的，
+    页面访问时还会再补一次。延迟 import 是为了避开 main <-> tasks 的循环依赖。
+    """
+    try:
+        from app.main import _start_analysis
+
+        _start_analysis(video_id)
+    except Exception as exc:  # noqa: BLE001 - 后台预取失败不该影响下载结果
+        logger.warning("视频 %s 下载完了，但没排上分解：%s", video_id, exc)
 
 
 def _update(session: Session, video: Video, **values) -> None:
@@ -32,6 +50,13 @@ def _find_downloaded_file(directory: Path) -> Path:
     if not candidates:
         raise RuntimeError("下载完成，但没有找到可用的视频文件")
     return max(candidates, key=lambda path: path.stat().st_size)
+
+
+def _ffmpeg_location() -> str | None:
+    """yt-dlp 合并音视频要用 ffmpeg。显式配置优先，找不到就让 yt-dlp 自己去找。"""
+    if settings.ffmpeg_location:
+        return settings.ffmpeg_location
+    return shutil.which("ffmpeg")
 
 
 def download_video(video_id: str) -> None:
@@ -57,6 +82,9 @@ def download_video(video_id: str) -> None:
         }
         if settings.yt_dlp_cookie_file:
             common_options["cookiefile"] = settings.yt_dlp_cookie_file
+        ffmpeg_path = _ffmpeg_location()
+        if ffmpeg_path:
+            common_options["ffmpeg_location"] = ffmpeg_path
 
         with yt_dlp.YoutubeDL({**common_options, "skip_download": True}) as downloader:
             info = downloader.extract_info(video.source_url, download=False)
@@ -146,6 +174,7 @@ def download_video(video_id: str) -> None:
                 mime_type=content_type,
             )
             # TemporaryDirectory removes the source and any yt-dlp fragments here.
+        _schedule_breakdown(video_id)
     except Exception as exc:
         session.rollback()
         video = session.get(Video, video_id)

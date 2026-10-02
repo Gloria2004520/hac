@@ -22,9 +22,39 @@ class Settings(BaseSettings):
     search_empty_cache_ttl_seconds: int = 60 * 60
     search_max_concurrent: int = 1
 
+    # ---------- 陪做 / 步骤检查用的对话模型（任意 OpenAI 兼容接口） ----------
+    # 与前端的取值规则保持一致：MODEL_API_KEY 优先于 OPENROUTER_API_KEY
+    model_api_base: str = "https://openrouter.ai/api/v1"
+    model_api_key: str | None = None
+    openrouter_api_key: str | None = None
+    model_name: str = "inclusionai/ling-3.0-flash-sante:free"
+    # 看图用的模型。留空表示就用 MODEL_NAME 本身。
+    # 当前接入的 DeepSeek deepseek-chat 已支持图片输入（2026-10 实测能正确描述画面），
+    # 所以默认按「能看图」处理。
+    model_vision_name: str | None = None
+    # 换成看不了图的模型时（发图会 400），设成 false 就不再发图，
+    # 页面也会如实告诉用户照片只留给他自己对照。
+    model_vision_enabled: bool = True
+    model_timeout_seconds: float = 45.0
+
+    @property
+    def model_key(self) -> str | None:
+        return self.model_api_key or self.openrouter_api_key
+
+    @property
+    def vision_model(self) -> str:
+        return self.model_vision_name or self.model_name
+
+    @property
+    def model_endpoint(self) -> str:
+        return self.model_api_base.rstrip("/")
+
     max_video_duration_seconds: int = 3600
     max_file_size_bytes: int = 2 * 1024 * 1024 * 1024
     temp_root: Path = Path("/tmp/cookclip")
+    # ffmpeg 的位置（目录或可执行文件都行）。留空则自动在 PATH 里找。
+    # yt-dlp 合并音视频要用它，找不到就会报 "ffmpeg is not installed"。
+    ffmpeg_location: str | None = None
     yt_dlp_cookie_file: str | None = None
     allowed_video_domains: str = (
         "youtube.com,youtu.be,bilibili.com,b23.tv,tiktok.com,instagram.com"
