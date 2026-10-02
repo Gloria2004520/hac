@@ -21,6 +21,36 @@ ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 logger = logging.getLogger("cookclip.tasks")
 
 
+def _friendly_error(message: str) -> str:
+    """把 yt-dlp 的原始报错翻成人话，并直接给出能落地的下一步。
+
+    页面那段红字用户是要照着做的，一段英文堆栈帮不了他。
+    """
+    lowered = message.lower()
+    if "sign in to confirm" in lowered and "bot" in lowered:
+        return (
+            "YouTube 认为当前网络像机器人，要求登录验证。两条路："
+            "① 用你登录过 YouTube 的浏览器导出一份 cookie（Netscape 格式），在 .env 里填 "
+            "YT_DLP_COOKIE_FILE=cookie 文件路径，重启后端；"
+            "② 或者换一个网络出口（比如手机热点）再试一次。"
+        )
+    if "sign in to confirm your age" in lowered or ("age" in lowered and "restrict" in lowered):
+        return "这个视频有年龄限制，需要用登录过 YouTube 的账号 cookie 才能下载（.env 里配 YT_DLP_COOKIE_FILE）。"
+    if "video unavailable" in lowered:
+        return "YouTube 说这个视频看不了（可能下架、地区限制或被删除）。换一条视频试试。"
+    if "private video" in lowered:
+        return "这是一个私有视频，YouTube 不允许下载，换一条公开视频。"
+    if "members-only" in lowered:
+        return "这是频道会员专享视频，需要对应会员的 cookie 才能下载。"
+    if "ffmpeg is not installed" in lowered or "ffmpeg not found" in lowered:
+        return "没找到 ffmpeg。装好后把 .env 里的 FFMPEG_LOCATION 指到它的 bin 目录，重启后端。"
+    if "unsupported url" in lowered or "is not a valid url" in lowered:
+        return "这个链接解析不了。目前支持 YouTube 视频链接，检查一下是不是贴错了。"
+    if "http error 429" in lowered or "too many requests" in lowered:
+        return "YouTube 在限流，稍等几分钟再试。"
+    return message
+
+
 def _schedule_breakdown(video_id: str) -> None:
     """下载完顺手排一次分解。
 
@@ -179,7 +209,7 @@ def download_video(video_id: str) -> None:
         session.rollback()
         video = session.get(Video, video_id)
         if video is not None:
-            message = ANSI_ESCAPE.sub("", str(exc))
+            message = _friendly_error(ANSI_ESCAPE.sub("", str(exc)))
             _update(session, video, status="failed", error_message=message[:2000])
         raise
     finally:

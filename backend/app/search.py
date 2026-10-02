@@ -82,6 +82,13 @@ def _failure_reason(partial: str) -> str:
     lower = tail.lower()
     if "429" in tail or "too many requests" in lower:
         return "视频平台当前限制了搜索请求，请稍后重试。"
+    if "sign in to confirm" in lower and "bot" in lower:
+        return (
+            "YouTube 认为当前网络像机器人，要求登录验证。"
+            "用登录过 YouTube 的浏览器导出一份 cookie 文件，在 .env 里填 "
+            "YT_DLP_COOKIE_FILE=文件路径 后重启后端；或者换一个网络出口再试，"
+            "也可以先直接粘贴视频链接。"
+        )
     if any(marker in lower for marker in UNREACHABLE_MARKERS):
         return (
             "本机连不上 YouTube"

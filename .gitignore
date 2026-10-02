@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# 浏览器导出的 cookie（等于 YouTube 登录凭据，绝不能提交）
+*cookies*.txt
+
 # macOS
 .DS_Store
 
