@@ -1,35 +1,85 @@
-# 慢慢来
+# slowly · Frontend
 
-手机 App / 小程序风格的教程陪做网页原型。
+**English** | [中文](README.zh-CN.md)
 
-## 本地运行
+A phone-app / mini-program style prototype for following along with a tutorial. The pages are static
+files served by `server.cjs` in this directory.
 
-使用 Node.js 18 或更新版本，无需安装依赖。以下命令都在本目录（`frontend/`）中执行。
+> The UI copy is in Chinese.
 
-1. 在仓库根目录把 `.env.example` 复制为 `.env`（前后端共用）。
-2. 在其中填写 `OPENROUTER_API_KEY`（默认免费模型用），勿提交密钥；要换成 DeepSeek 等见仓库根目录 README 的「切换到 DeepSeek」。
-3. 先按仓库根目录 README 启动 FastAPI 后端（默认 `http://127.0.0.1:8000`）。
-4. 运行 `node server.cjs`。
-5. 打开 http://127.0.0.1:8766/。
+## Run locally
 
-`server.cjs` 通过 `__dirname` 定位 `dist/index.html`，并从上一级目录（仓库根目录）读取 `.env`。
+Node.js 18 or newer; no dependencies to install. All commands below run in this directory
+(`frontend/`).
 
-## 当前功能
+1. At the repo root, copy `.env.example` to `.env` (shared by both ends).
+2. Fill in `OPENROUTER_API_KEY` (used by the default free model); never commit the key. To switch to
+   DeepSeek or another provider, see "Switching to DeepSeek" in the root README.
+3. Start the FastAPI backend first, as described in the root README (defaults to
+   `http://127.0.0.1:8000`).
+4. Run `node server.cjs`.
+5. Open http://127.0.0.1:8766/.
 
-- 聊天首页、点击推荐问题直接发送。
-- 用户提出问题时，由聊天服务调用 FastAPI，在 YouTube 实时检索相关教程。
-- 点击检索结果会在当前页弹窗播放 YouTube 原视频；点击“教程分解”后才创建下载任务并进入独立页面。
-- 下载页会在下载期间继续播放 YouTube，完成后自动切换为本地 MP4；页面上有「按步骤做 · 一步步来 →」入口进入 `steps.html`。
-- 步骤页（`dist/steps.html`）：把教程拆成一步步，每步带「问自己 / 合格标准 / 卡住了的提示」。
-  - 支持「我做到了」勾选、「让小慢看看过没过」（模型按合格标准判定 通过/还差一点/说不清，通过会自动记成做到）、「卡住了问小慢」。
-  - 步骤与进度都存在后端 SQLite（`tutorial_steps` / `step_interactions` 表），刷新不丢。
-  - 分解是**真的**：`backend/app/video_analysis.py` 用 ffmpeg 找画面切点、抽代表帧，`breakdown.py` 把每段发给视觉模型写标题/说明/合格标准。模型只看到每段中间的一张截图，没听声音、没做字幕转写；拆不出来时退回通用骨架（`mock=true` + 诚实说明）。
-  - 判定/问答走 `backend/app/coach.py`，用与对话相同的 OpenAI 兼容配置。照片默认一起发给模型（DeepSeek 的 `deepseek-chat` 实测能正确描述画面）；换成看不了图的模型时把 `MODEL_VISION_ENABLED` 设成 `false`，或用 `MODEL_VISION_NAME` 指定一个专门看图的模型。模型读不了照片会自动退一步只按文字判，并如实说明。
-- 使用 `MODEL_API_BASE` / `MODEL_API_KEY` / `MODEL_NAME` 指定的模型进行文字对话，默认是 OpenRouter 的 `inclusionai/ling-3.0-flash-sante:free` 免费模型，可切换为 DeepSeek 官方 API。
-- 本地视频预览，视频不会上传服务器。
+`server.cjs` locates `dist/` via `__dirname` and reads `.env` from the parent directory (the repo
+root). It is also the API proxy: it handles `/api/chat` itself (calling the backend's `/api/search`
+internally), and forwards `/api/videos*` and `/api/saved-tutorials` to `VIDEO_BACKEND_URL`
+unchanged. (`/api/search` is served by the backend only; the browser does not call it directly.)
 
-## 原型限制
+## The three pages
 
-YouTube 结果来自实时检索，点击后会下载到本机。下载和播放不代表 AI 已观看或解析视频。步骤页的分解只看每段中间的一张截图（画面切点 + 抽帧），没有听声音、没有字幕转写，所以模型写的是「这一帧里有什么」而不是「这一段讲了什么」；判定模型也没有看过视频，只依据合格标准、用户描述和可选的照片。请只保存你有权下载的公开视频。免费模型可能受限流影响。
+| Page | What it does |
+| --- | --- |
+| `dist/index.html` (`/`) | Chat home: ask, tap a suggested question to send it, preview YouTube results in a modal. Once you have saved something, a "saved to do slowly" entry appears (also reachable from the ⋯ menu) |
+| `dist/video.html?id=` | One video: plays the original YouTube video while downloading, then switches to the local MP4; `?start=&end=` plays only that segment |
+| `dist/steps.html?id=` | Step by step: step strip, representative frame, checks, Q&A, save, re-break-down |
 
-服务只监听本机地址；部署为公开服务前需添加用户认证、请求限额及服务端密钥管理。
+## What works today
+
+- Chat home; tapping a suggested question sends it.
+- When you ask something, the chat service calls FastAPI to search YouTube live. A failed search
+  reports why it failed (unreachable / rate-limited / other) and offers "paste a video link" as an
+  alternative — it is **never** reported as "nothing found".
+- Tapping a result plays the original YouTube video in a modal on the same page; only "教程分解"
+  creates a download job and opens `video.html`.
+- The video page keeps playing YouTube during the download and switches to the local MP4 when it is
+  done; it links to the steps page via "按步骤做 · 一步步来 →".
+- The steps page (`dist/steps.html`):
+  - Each step shows one representative frame plus "watch just this segment", which jumps to
+    `video.html?start=&end=`.
+  - An "I did it" checkbox; "let the model check this step" (the model judges pass / a bit more to
+    do / unclear against the criterion, and a pass is recorded automatically); "ask when stuck".
+  - "Save" / "Saved". Once saved, a "saved to do slowly" entry shows up on the home page, and the
+    list shows progress such as "3 / 10 steps done".
+  - "Re-break it down" is one tap: it runs in the background and returns immediately while the page
+    polls for progress. The button turns red as a warning when there is progress, but there is no
+    second confirmation.
+  - The step strip is scrollable on desktop too (the wheel scrolls it horizontally, and you can drag
+    it).
+  - Steps and progress live in the backend's SQLite (`tutorial_steps` / `step_interactions`), so a
+    refresh loses nothing.
+  - The breakdown is **real**: `backend/app/video_analysis.py` uses ffmpeg to find scene cuts and
+    grab representative frames, then `breakdown.py` sends each segment to a vision model to write
+    the title / description / pass criterion. The model sees one screenshot per segment, hears no
+    audio and gets no transcript; when a breakdown cannot be done it falls back to a generic
+    skeleton (`mock=true` plus an honest note).
+  - Checks and Q&A go through `backend/app/coach.py` with the same OpenAI-compatible config as the
+    chat. Attached photos are sent to the model by default (`deepseek-chat` was measured to describe
+    images correctly); for a model that cannot see images, set `MODEL_VISION_ENABLED=false`, or point
+    `MODEL_VISION_NAME` at a vision model. When the model cannot read a photo it falls back to
+    judging on text alone and says so.
+- Text chat uses the model configured by `MODEL_API_BASE` / `MODEL_API_KEY` / `MODEL_NAME`; the
+  default is OpenRouter's free `inclusionai/ling-3.0-flash-sante:free`, switchable to the official
+  DeepSeek API.
+- Local video preview; videos are never uploaded to a server.
+
+## Prototype limits
+
+YouTube results come from a live search and are downloaded to your machine when clicked. Downloading
+and playing do not mean the AI has watched or parsed the video. The steps page's breakdown only sees
+one screenshot per segment (scene cuts + frame grabs): no audio, no transcription. So what the model
+writes is "what is in this frame", not "what this segment is about"; the checking model has not
+watched the video either — it only has the pass criterion, your description and an optional photo.
+Please only save public videos you are allowed to download. Free models may be rate-limited.
+
+The service binds to localhost only; add user authentication, request limits and server-side secret
+management before deploying publicly.
