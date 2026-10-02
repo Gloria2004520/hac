@@ -17,7 +17,7 @@ if (fs.existsSync(envPath)) {
 
 const videoBackendUrl = (process.env.VIDEO_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const port = Number.parseInt(process.env.PORT || "8766", 10);
-// 对话模型配置：默认沿用 OpenRouter 免费模型，可切换到 DeepSeek 等 OpenAI 兼容接口
+// 对话模型配置：默认使用 OpenRouter 免费模型，任何 OpenAI 兼容接口都可以用环境变量替换
 const modelApiBase = (process.env.MODEL_API_BASE || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
 const modelApiKey = process.env.MODEL_API_KEY || process.env.OPENROUTER_API_KEY || "";
 const modelName = process.env.MODEL_NAME || "inclusionai/ling-3.0-flash-sante:free";

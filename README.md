@@ -28,15 +28,25 @@ cp .env.example .env    # 填入自己的模型密钥，勿提交密钥
 
 `frontend/server.cjs` 读取 `../.env`，`backend/app/config.py` 读取仓库根目录的 `.env`，两边都会忽略与自己无关的配置项。
 
-文字对话的模型接口通过三个变量配置，任何 OpenAI 兼容服务都可以接入：
+文字对话默认使用 OpenRouter 的免费模型，在 `.env` 里填上密钥即可：
 
 ```bash
-MODEL_API_BASE=https://api.deepseek.com/v1   # 默认是 https://openrouter.ai/api/v1
-MODEL_API_KEY=sk-xxxxxxxx                    # 对应平台的密钥
-MODEL_NAME=deepseek-chat                     # 默认是 OpenRouter 的免费模型
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxx    # 默认免费模型必填；勿提交密钥
 ```
 
-接入 DeepSeek 官方 API 时，到 https://platform.deepseek.com 创建密钥，把上面三行填进 `.env`，重启前端即可。
+### 切换到 DeepSeek
+
+想改用 DeepSeek 官方 API（按你账号的用量计费），先到 https://platform.deepseek.com 创建一个 API Key，然后编辑 `.env`：
+
+```bash
+MODEL_API_BASE=https://api.deepseek.com/v1
+MODEL_API_KEY=sk-你的 DeepSeek 密钥
+MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
+```
+
+保存后重启前端（`cd frontend && node server.cjs`）生效。想切回 OpenRouter 免费模型，把 `MODEL_API_BASE` 改成 `https://openrouter.ai/api/v1`、`MODEL_NAME` 改成 `inclusionai/ling-3.0-flash-sante:free`，并确保 `OPENROUTER_API_KEY` 已填写。
+
+三个变量的规则：`MODEL_API_KEY` 优先于 `OPENROUTER_API_KEY`；`MODEL_API_BASE` 和 `MODEL_NAME` 不填时用代码里的默认值（OpenRouter 免费模型）。
 
 ## 启动后端
 

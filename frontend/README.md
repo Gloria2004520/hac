@@ -7,7 +7,7 @@
 使用 Node.js 18 或更新版本，无需安装依赖。以下命令都在本目录（`frontend/`）中执行。
 
 1. 在仓库根目录把 `.env.example` 复制为 `.env`（前后端共用）。
-2. 在其中填写自己的模型密钥（`MODEL_API_KEY`，默认接口是 OpenRouter 免费模型，也可换成 DeepSeek 等），勿提交密钥。
+2. 在其中填写 `OPENROUTER_API_KEY`（默认免费模型用），勿提交密钥；要换成 DeepSeek 等见仓库根目录 README 的「切换到 DeepSeek」。
 3. 先按仓库根目录 README 启动 FastAPI 后端（默认 `http://127.0.0.1:8000`）。
 4. 运行 `node server.cjs`。
 5. 打开 http://127.0.0.1:8766/。
