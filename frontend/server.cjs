@@ -17,6 +17,10 @@ if (fs.existsSync(envPath)) {
 
 const videoBackendUrl = (process.env.VIDEO_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const port = Number.parseInt(process.env.PORT || "8766", 10);
+// 对话模型配置：默认沿用 OpenRouter 免费模型，可切换到 DeepSeek 等 OpenAI 兼容接口
+const modelApiBase = (process.env.MODEL_API_BASE || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+const modelApiKey = process.env.MODEL_API_KEY || process.env.OPENROUTER_API_KEY || "";
+const modelName = process.env.MODEL_NAME || "inclusionai/ling-3.0-flash-sante:free";
 
 function requestIsSameOrigin(req) {
   return !req.headers.origin || req.headers.origin === `http://${req.headers.host}`;
@@ -94,14 +98,14 @@ function parseReply(content) {
 }
 
 async function requestModel(messages) {
-  const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const upstream = await fetch(`${modelApiBase}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${modelApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "inclusionai/ling-3.0-flash-sante:free",
+      model: modelName,
       messages: [{ role: "system", content: system }, ...messages],
       max_tokens: 900,
       temperature: 0.4,
@@ -162,7 +166,7 @@ http.createServer(async (req, res) => {
         }
         return { role: message.role, content: message.content };
       });
-      if (!process.env.OPENROUTER_API_KEY) return reply(res, 503, { error: "服务端尚未配置密钥" });
+      if (!modelApiKey) return reply(res, 503, { error: "服务端尚未配置密钥" });
 
       busy = true;
       const [modelResult, searchResult] = await Promise.all([

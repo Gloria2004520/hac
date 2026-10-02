@@ -23,10 +23,20 @@
 前端和后端共用仓库根目录的同一个 `.env`：
 
 ```bash
-cp .env.example .env    # 填入自己的 OpenRouter 密钥，勿提交密钥
+cp .env.example .env    # 填入自己的模型密钥，勿提交密钥
 ```
 
 `frontend/server.cjs` 读取 `../.env`，`backend/app/config.py` 读取仓库根目录的 `.env`，两边都会忽略与自己无关的配置项。
+
+文字对话的模型接口通过三个变量配置，任何 OpenAI 兼容服务都可以接入：
+
+```bash
+MODEL_API_BASE=https://api.deepseek.com/v1   # 默认是 https://openrouter.ai/api/v1
+MODEL_API_KEY=sk-xxxxxxxx                    # 对应平台的密钥
+MODEL_NAME=deepseek-chat                     # 默认是 OpenRouter 的免费模型
+```
+
+接入 DeepSeek 官方 API 时，到 https://platform.deepseek.com 创建密钥，把上面三行填进 `.env`，重启前端即可。
 
 ## 启动后端
 
