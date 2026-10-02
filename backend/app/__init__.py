@@ -1,0 +1,2 @@
+"""CookClip video ingestion service."""
+
