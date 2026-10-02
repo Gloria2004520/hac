@@ -17,7 +17,7 @@
       { id: 'step-3', title: '交叉缝合纽扣', actions: ['从衣服背面下针，穿过纽扣的一组对角孔，再穿回布料。', '换另一组对角孔，重复交叉缝合；留一点让扣眼穿过的空间。'], done: '纽扣已固定，轻轻拨动不会脱落，衣服没有明显褶皱。', mistakes: ['拉线太紧，纽扣紧贴布料，扣眼不好穿过。', '针尖从布料下面穿出时扎到手。'], recovery: '如果扣不上或布料起皱，暂停并拆掉过紧的线，重新固定。', safety: ['手指避开针尖穿出的方向，缓慢下针。'], wait_minutes: 0 },
       { id: 'step-4', title: '收线并检查牢固程度', actions: ['把针引到衣服背面，打结固定，再剪去多余线头。', '轻拉纽扣，试着扣上、解开，检查位置和松紧。'], done: '纽扣不松脱，能正常扣合，背面的结已固定。', mistakes: ['没打结就剪线，缝线容易散开。'], recovery: '线已散开时重新固定，避免继续拉扯面料。', safety: ['剪线前确认剪刀没有夹到衣服或手指。'], wait_minutes: 0 },
       { id: 'step-5', title: '收好工具', actions: ['把针收回针盒，收好剪刀，清理剪下的线头。'], done: '针和剪刀都已收好，桌面与衣服上没有散落的针。', mistakes: ['针留在衣服上，之后穿着时容易扎伤。'], recovery: '发现针不见了先停止整理，找到针并收好。', safety: ['确认用过的针已经收回针盒。'], wait_minutes: 0 },
-    ].map(s => ({ ...s, origin: 'example', timestamp: null, evidence: '', frame: null })),
+    ].map(s => ({ ...s, origin: 'example', timestamp: null, clip_end: null, evidence: '', frames: [] })),
   };
   const api = { demo };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

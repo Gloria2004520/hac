@@ -14,6 +14,10 @@
   <main class="page">
     <header class="top"><div class="brand"><span>✿</span>慢慢来</div><a class="back" href="/">返回聊天</a></header>
     <article class="card">
+      <div class="video-upload">
+        <label class="upload-video-button">上传本地视频<input id="localVideoInput" type="file" accept="video/*,.mp4,.mov,.webm,.m4v" aria-label="上传本地视频"></label>
+        <p id="localVideoHint" class="note">选择本地视频后，可为每一步提取多张关键帧。文件仅在当前浏览器读取，不上传服务器。</p>
+      </div>
       <p class="eyebrow">教程视频 · 先看，再做</p>
       <h1 class="title" id="title">正在准备教程视频…</h1>
       <div class="meta" id="meta">正在读取任务信息</div>
@@ -32,6 +36,7 @@
     <section id="workbench" class="card workbench" aria-label="视频拆解与分步骤 SOP"></section>
   </main>
   <script src="/tutorial-example.js"></script>
+  <script src="/tutorial-frames.js"></script>
   <script src="/tutorial.js"></script>
   <style>[hidden]{display:none!important}</style>
   <script>
@@ -45,9 +50,10 @@
     function youtubeId(source){try{const url=new URL(source);if(url.hostname==='youtu.be')return url.pathname.slice(1);if(url.hostname.endsWith('youtube.com'))return url.searchParams.get('v')}catch{}return null}
     function showRemote(video){if(remoteLoaded||playerLoaded)return;const sourceId=youtubeId(video.source_url);if(sourceId){remoteLoaded=true;$('remotePlayer').src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(sourceId)+'?rel=0';$('remotePlayer').hidden=false;$('thumbnail').hidden=true}else if(video.thumbnail_url){$('thumbnail').src=video.thumbnail_url;$('thumbnail').hidden=false}}
     function showLocal(){if(playerLoaded)return;playerLoaded=true;$('remotePlayer').src='about:blank';$('remotePlayer').hidden=true;$('thumbnail').hidden=true;$('player').src='/api/videos/'+encodeURIComponent(id)+'/content';$('player').hidden=false;$('playbackLabel').textContent='正在播放后端保存的本地 MP4'}
-    function render(video){window.tutorialVideo=video;window.dispatchEvent(new Event('tutorial-video'));$('title').textContent=video.title||'正在读取视频标题…';$('meta').textContent=[video.uploader,formatDuration(video.duration_seconds)].filter(Boolean).join(' · ')||'YouTube 教程';$('source').href=video.source_url;$('source').hidden=false;showRemote(video);$('statusText').textContent=labels[video.status]||video.status;$('progressText').textContent=video.progress+'%';$('progressBar').style.width=video.progress+'%';$('facts').replaceChildren(...[formatDuration(video.duration_seconds),formatBytes(video.file_size),video.mime_type].filter(Boolean).map(value=>{const span=document.createElement('span');span.className='fact';span.textContent=value;return span}));if(video.status==='failed'){fail(video.error_message||'视频下载失败');return}if(video.status==='ready'){clearTimeout(timer);$('statusBox').hidden=true;showLocal();return}timer=setTimeout(load,1500)}
+    function render(video){if(window.localTutorialVideo)return;window.tutorialVideo=video;window.dispatchEvent(new Event('tutorial-video'));$('title').textContent=video.title||'正在读取视频标题…';$('meta').textContent=[video.uploader,formatDuration(video.duration_seconds)].filter(Boolean).join(' · ')||'YouTube 教程';$('source').href=video.source_url;$('source').hidden=false;showRemote(video);$('statusText').textContent=labels[video.status]||video.status;$('progressText').textContent=video.progress+'%';$('progressBar').style.width=video.progress+'%';$('facts').replaceChildren(...[formatDuration(video.duration_seconds),formatBytes(video.file_size),video.mime_type].filter(Boolean).map(value=>{const span=document.createElement('span');span.className='fact';span.textContent=value;return span}));if(video.status==='failed'){fail(video.error_message||'视频下载失败');return}if(video.status==='ready'){clearTimeout(timer);$('statusBox').hidden=true;showLocal();return}timer=setTimeout(load,1500)}
+    window.setLocalTutorialVideo=(url,name)=>{window.localTutorialVideo=true;clearTimeout(timer);$('remotePlayer').src='about:blank';$('remotePlayer').hidden=true;$('thumbnail').hidden=true;$('source').hidden=true;$('statusBox').hidden=true;$('facts').replaceChildren();$('title').textContent=name;$('meta').textContent='本地视频';$('player').src=url;$('player').hidden=false;$('playbackLabel').hidden=false;$('playbackLabel').textContent='正在播放你选择的本地视频';document.querySelector('article .note:not(#localVideoHint)').textContent='可导入字幕或粘贴教程文字生成 SOP，再按步骤提取视频画面。当前没有自动视觉解析或音频转写。'};
     async function load(){try{const response=await fetch('/api/videos/'+encodeURIComponent(id),{cache:'no-store'});const raw=await response.text();let data;try{data=JSON.parse(raw)}catch{throw Error('视频服务返回了无法识别的响应，请重启前端服务')}if(!response.ok)throw Error(data.detail||data.error||'无法读取视频任务');render(data)}catch(error){fail(error.message)}}
-    if(new URLSearchParams(location.search).get('demo')==='button'){$('title').textContent='缝纽扣 · SOP 示例';$('meta').textContent='人工编写的 SOP 示例，无关联视频';$('statusBox').hidden=true;$('playbackLabel').hidden=true;document.querySelector('.note').textContent='下面展示分步骤 SOP、工具清单、易错点与安全提示。此示例由人工编写，不会调用模型。'}else if(!id||!/^[A-Za-z0-9-]{1,64}$/.test(id))fail('视频地址无效');else load();
+    if(new URLSearchParams(location.search).get('demo')==='button'){$('title').textContent='缝纽扣 · SOP 示例';$('meta').textContent='人工编写的 SOP 示例，无关联视频';$('statusBox').hidden=true;$('playbackLabel').hidden=true;document.querySelector('article .note:not(#localVideoHint)').textContent='下面展示人工编写的 SOP 示例。也可上传本地视频，体验每步多张画面的提取。'}else if(!id){$('title').textContent='上传视频，开始拆解';$('meta').textContent='支持本地视频与字幕';$('statusBox').hidden=true;$('playbackLabel').hidden=true;document.querySelector('article .note:not(#localVideoHint)').textContent='先选择本地视频，再在下方导入字幕或粘贴教程文字。'}else if(!/^[A-Za-z0-9-]{1,64}$/.test(id))fail('视频地址无效');else load();
   </script>
 </body>
 </html>

@@ -226,7 +226,7 @@ http.createServer(async (req, res) => {
   }
 
   const pathname = req.url.split("?")[0];
-  if (req.method === "GET" && ["/tutorial.js", "/tutorial-example.js", "/tutorial.css"].includes(pathname)) {
+  if (req.method === "GET" && ["/tutorial.js", "/tutorial-example.js", "/tutorial-frames.js", "/tutorial.css"].includes(pathname)) {
     res.writeHead(200, { "Content-Type": pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
     return fs.createReadStream(path.join(root, 'dist', pathname.slice(1))).pipe(res);
   }

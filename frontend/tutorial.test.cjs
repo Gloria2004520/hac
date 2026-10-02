@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { generateTutorial, normalizeTutorial, MODEL } = require('./tutorial.cjs');
+const { generateTutorial, normalizeTutorial, MODEL, parseTimedTranscript } = require('./tutorial.cjs');
+const F = require('./dist/tutorial-frames.js');
 const raw = { title: '换盆', tools: [{ name: '新盆', required: true }], steps: [{ title: '放入新盆', actions: ['放稳'], done: '已放稳', cue_id: 2, timestamp: 999, wait_minutes: -1 }] };
 const segments = [{ id: 2, start: 12.5, end: 14, text: '接下来放到新盆里' }];
 const provider = content => ({ ok: true, json: async () => ({ choices: [{ message: { content } }] }) });
@@ -8,12 +9,40 @@ const provider = content => ({ ok: true, json: async () => ({ choices: [{ messag
 test('timestamps can only come from supplied subtitle cues, not AI fields', () => {
   const tutorial = normalizeTutorial(raw, { source: 'subtitle', segments });
   assert.equal(tutorial.steps[0].timestamp, 12.5);
+  assert.equal(tutorial.steps[0].clip_end, 14);
   assert.equal(tutorial.steps[0].origin, 'subtitle');
   assert.equal(tutorial.steps[0].evidence, segments[0].text);
   assert.equal(tutorial.steps[0].wait_minutes, 0);
   const manual = normalizeTutorial(raw, { source: 'manual', segments: [] });
   assert.equal(manual.steps[0].timestamp, null);
   assert.equal(manual.steps[0].origin, 'ai');
+});
+test('step range is grounded in all matched cues and ignores model range fields', () => {
+  const draft = structuredClone(raw); draft.steps[0].cue_ids = [2, 3, 999]; draft.steps[0].clip_end = 300;
+  const tutorial = normalizeTutorial(draft, { source: 'subtitle', segments: [...segments, { id: 3, start: 14, end: 20, text: '然后填土' }] });
+  assert.equal(tutorial.steps[0].timestamp, 12.5); assert.equal(tutorial.steps[0].clip_end, 20);
+  assert.equal(tutorial.steps[0].evidence, '接下来放到新盆里 然后填土');
+});
+test('SRT and VTT imports preserve real caption timestamps', () => {
+  const captions = '\uFEFF1\n00:00:01,200 --> 00:00:04,000\n穿针\n打结\n\n2\n00:00:04,000 --> 00:00:08,000\n缝合';
+  assert.deepEqual(parseTimedTranscript(captions), [{ id: 1, start: 1.2, end: 4, text: '穿针 打结' }, { id: 2, start: 4, end: 8, text: '缝合' }]);
+  assert.equal(parseTimedTranscript('WEBVTT\n\n00:01.200 --> 00:02.200 align:start\n<c>动作</c>')[0].start, 1.2);
+  assert.deepEqual(parseTimedTranscript('只有文字，没有时间点'), []);
+});
+test('single-frame drafts migrate without losing their image', () => {
+  const image = { time: 12.5, url: 'data:image/jpeg;base64,AA==' };
+  const step = { frame: image }; F.migrate(step);
+  assert.deepEqual(step.frames, [image]); assert.equal(step.frame, undefined);
+  F.add(step, { time: 5, url: image.url }); assert.equal(step.frames[0].time, 5);
+  assert.throws(() => F.add(step, { time: 5.01, url: image.url }), /已经有画面/);
+});
+test('frame limits and sampling do not overwrite existing frames or exceed the video', () => {
+  const step = { frames: [] };
+  for (let i = 0; i < 8; i++) F.add(step, { time: i, url: 'image' });
+  assert.throws(() => F.add(step, { time: 9, url: 'image' }), /最多保存/); assert.equal(step.frames.length, 8);
+  const points = F.sample(2, 8, 10); assert.equal(points.length, 3); assert(points.every(t => t >= 2 && t < 8));
+  assert.throws(() => F.sample(8, 12, 10), /超出视频/); assert.throws(() => F.sample(3, 2, 10), /起止时间/);
+  assert(F.sample(0, .01, 1).every(t => t >= 0));
 });
 test('rejects incomplete structured responses without replacing them with a demo', () => {
   assert.throws(() => normalizeTutorial({ steps: [] }, {}));
@@ -29,6 +58,18 @@ test('manual generation calls only the free model', async () => {
     },
   });
   assert.equal(count, 1); assert.equal(tutorial.source, 'manual');
+});
+test('local subtitle generation supplies timed evidence without backend video requests', async () => {
+  const text = '1\n00:00:01,000 --> 00:00:05,000\n取出旧盆中的植物，检查根系，然后放入新盆。';
+  const response = structuredClone(raw); response.steps[0].cue_ids = [1];
+  const tutorial = await generateTutorial({ text }, { key: 'test', fetchImpl: async (url, options) => {
+    assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
+    const evidence = JSON.parse(JSON.parse(options.body).messages[1].content);
+    assert.equal(evidence.source, 'manual_subtitle'); assert.equal(evidence.segments[0].end, 5);
+    return provider(JSON.stringify(response));
+  } });
+  assert.equal(tutorial.steps[0].timestamp, 1); assert.equal(tutorial.steps[0].clip_end, 5);
+  assert.equal(tutorial.source, 'manual_subtitle');
 });
 test('subtitle generation retrieves evidence from backend before model call', async () => {
   let calls = 0;
