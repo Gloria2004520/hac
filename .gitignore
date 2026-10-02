@@ -1,6 +1,28 @@
-.env*
+# 密钥与本机配置
+.env
+.env.*
 !.env.example
+
+# macOS
 .DS_Store
-.openai/
+
+# Node
 node_modules/
+.openai/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 后端运行数据（SQLite 与下载的素材，不入库）
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+
+# 本地备份
 .git-broken-backup/

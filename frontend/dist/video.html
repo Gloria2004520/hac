@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fbf6df">
+  <title>教程视频 · 慢慢来</title>
+  <style>
+    :root{--ink:#494638;--muted:#918a73;--yellow:#f8d65b;--paper:#fffdf7;--bg:#fcf9ed}*{box-sizing:border-box}body{margin:0;background:#ecebe5;color:var(--ink);font-family:'PingFang SC','Microsoft YaHei',sans-serif;-webkit-font-smoothing:antialiased}.page{width:100%;max-width:760px;min-height:100dvh;margin:auto;background:var(--bg);padding:22px clamp(18px,5vw,42px) 48px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:34px}.brand{font-size:19px;font-weight:750}.brand span{color:#b18c28;font-size:26px;margin-right:8px}.back{color:var(--ink);text-decoration:none;border:1px solid #ded6bd;border-radius:20px;padding:9px 14px;font-size:13px}.card{background:var(--paper);border:1px solid #eee7d2;border-radius:24px;padding:clamp(18px,5vw,32px);box-shadow:0 16px 55px #6457220c}.eyebrow{font-size:11px;letter-spacing:1.5px;color:#a18f58;margin:0 0 10px}.title{font-size:clamp(22px,5vw,32px);line-height:1.4;margin:0 0 8px}.meta{font-size:13px;color:var(--muted);margin-bottom:24px}.thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:17px;background:#eee8d9}.thumb[hidden],video[hidden],iframe[hidden]{display:none}.player-frame{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:17px;background:#222}.playback-label{font-size:11px;color:#8d7b48;margin:9px 2px 0}.status{margin-top:18px;padding:16px;background:#f6efd6;border-radius:14px}.status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}.track{height:8px;background:#e7dfc4;border-radius:10px;margin-top:13px;overflow:hidden}.bar{height:100%;width:0;background:var(--yellow);border-radius:10px;transition:width .35s}.error{background:#f8e5df;color:#9c493d}.note{color:var(--muted);font-size:12px;line-height:1.8;margin:18px 2px 0}.source{display:inline-block;color:#80681f;margin-top:14px;font-size:13px}video{display:block;width:100%;max-height:68vh;border-radius:17px;background:#222}.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.fact{background:#f4efdd;border-radius:10px;padding:7px 10px;font-size:11px;color:#82785e}@media(min-width:800px){body{padding:28px 0}.page{min-height:calc(100dvh - 56px);border-radius:30px}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top"><div class="brand"><span>✿</span>慢慢来</div><a class="back" href="/">返回聊天</a></header>
+    <article class="card">
+      <p class="eyebrow">DOWNLOADED TUTORIAL</p>
+      <h1 class="title" id="title">正在准备教程视频…</h1>
+      <div class="meta" id="meta">正在读取任务信息</div>
+      <iframe class="player-frame" id="remotePlayer" title="YouTube 原视频" allow="fullscreen; picture-in-picture; encrypted-media; autoplay" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
+      <img class="thumb" id="thumbnail" alt="" hidden>
+      <video id="player" controls playsinline preload="metadata" hidden></video>
+      <div class="playback-label" id="playbackLabel">下载期间播放 YouTube 原视频</div>
+      <div class="status" id="statusBox" role="status" aria-live="polite">
+        <div class="status-row"><strong id="statusText">等待下载</strong><span id="progressText">0%</span></div>
+        <div class="track"><div class="bar" id="progressBar"></div></div>
+      </div>
+      <div class="facts" id="facts"></div>
+      <a class="source" id="source" target="_blank" rel="noopener noreferrer" hidden>打开 YouTube 原视频 ↗</a>
+      <p class="note">下载期间播放 YouTube 原视频；下载完成后会自动切换为后端保存的本地 MP4。页面尚未分析视频内容，请只下载你有权保存的公开视频。</p>
+    </article>
+  </main>
+  <script>
+    const labels={pending:'等待下载',inspecting:'正在读取视频信息',downloading:'正在下载',processing:'正在合并音视频',uploading:'正在保存',ready:'下载完成',failed:'下载失败'};
+    const id=new URLSearchParams(location.search).get('id');
+    const $=name=>document.getElementById(name);
+    let timer=null,playerLoaded=false,remoteLoaded=false;
+    function formatDuration(seconds){if(!seconds)return '';const total=Math.round(seconds);return Math.floor(total/60)+':'+String(total%60).padStart(2,'0')}
+    function formatBytes(bytes){if(!bytes)return '';const units=['B','KB','MB','GB'];let value=bytes,index=0;while(value>=1024&&index<units.length-1){value/=1024;index+=1}return value.toFixed(index>1?1:0)+' '+units[index]}
+    function fail(message){clearTimeout(timer);$('statusBox').classList.add('error');$('statusText').textContent=message;$('progressText').textContent='';$('progressBar').style.width='0%'}
+    function youtubeId(source){try{const url=new URL(source);if(url.hostname==='youtu.be')return url.pathname.slice(1);if(url.hostname.endsWith('youtube.com'))return url.searchParams.get('v')}catch{}return null}
+    function showRemote(video){if(remoteLoaded||playerLoaded)return;const sourceId=youtubeId(video.source_url);if(sourceId){remoteLoaded=true;$('remotePlayer').src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(sourceId)+'?rel=0';$('remotePlayer').hidden=false;$('thumbnail').hidden=true}else if(video.thumbnail_url){$('thumbnail').src=video.thumbnail_url;$('thumbnail').hidden=false}}
+    function showLocal(){if(playerLoaded)return;playerLoaded=true;$('remotePlayer').src='about:blank';$('remotePlayer').hidden=true;$('thumbnail').hidden=true;$('player').src='/api/videos/'+encodeURIComponent(id)+'/content';$('player').hidden=false;$('playbackLabel').textContent='正在播放后端保存的本地 MP4'}
+    function render(video){$('title').textContent=video.title||'正在读取视频标题…';$('meta').textContent=[video.uploader,formatDuration(video.duration_seconds)].filter(Boolean).join(' · ')||'YouTube 教程';$('source').href=video.source_url;$('source').hidden=false;showRemote(video);$('statusText').textContent=labels[video.status]||video.status;$('progressText').textContent=video.progress+'%';$('progressBar').style.width=video.progress+'%';$('facts').replaceChildren(...[formatDuration(video.duration_seconds),formatBytes(video.file_size),video.mime_type].filter(Boolean).map(value=>{const span=document.createElement('span');span.className='fact';span.textContent=value;return span}));if(video.status==='failed'){fail(video.error_message||'视频下载失败');return}if(video.status==='ready'){clearTimeout(timer);$('statusBox').hidden=true;showLocal();return}timer=setTimeout(load,1500)}
+    async function load(){try{const response=await fetch('/api/videos/'+encodeURIComponent(id),{cache:'no-store'});const raw=await response.text();let data;try{data=JSON.parse(raw)}catch{throw Error('视频服务返回了无法识别的响应，请重启前端服务')}if(!response.ok)throw Error(data.detail||data.error||'无法读取视频任务');render(data)}catch(error){fail(error.message)}}
+    if(!id||!/^[A-Za-z0-9-]{1,64}$/.test(id))fail('视频地址无效');else load();
+  </script>
+</body>
+</html>
