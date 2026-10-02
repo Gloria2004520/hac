@@ -181,7 +181,7 @@ def search_videos(
     except SearchTimeout as exc:
         raise HTTPException(
             status_code=504,
-            detail="检索超时，可稍后重试或直接粘贴视频链接",
+            detail=f"检索超时：{exc}",
         ) from exc
     except SearchBusy as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc

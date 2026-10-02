@@ -15,7 +15,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/cookclip.db"
     local_storage_root: Path = Path("./data/storage")
     local_workers: int = 2
-    search_timeout_seconds: int = 8
+    # 整个检索子进程的总预算（秒）。要容得下 Python 启动 + import yt-dlp + 联网，
+    # 8 秒在健康网络下都很紧（光 import 就要 1~2 秒）。
+    search_timeout_seconds: int = 25
+    # 单次 socket 操作超时（秒）。比总预算小，这样连不上时能早点失败、拿到真实报错。
+    search_socket_timeout_seconds: int = 10
     search_fetch_limit: int = 20
     search_result_limit: int = 12
     search_cache_ttl_seconds: int = 6 * 60 * 60

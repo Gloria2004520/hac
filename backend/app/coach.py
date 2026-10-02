@@ -225,35 +225,54 @@ def check_step(step: Any, report: str, image_data_url: str | None = None) -> Che
             basis="none",
         )
 
-    vision_model = settings.model_vision_name if image_data_url else None
-    used_image = bool(vision_model)
+    wants_image = bool(image_data_url) and settings.model_vision_enabled
+    text_only = f"{_step_context(step)}\n\n用户自己描述的现场情况：{report}"
 
-    user_text = f"{_step_context(step)}\n\n用户自己描述的现场情况：{report}"
-    if image_data_url and not used_image:
-        user_text += "\n（用户还带了照片，但这个模型看不了图片，请只根据上面这段文字判断。）"
-
-    if used_image:
-        user_content: Any = [
-            {"type": "text", "text": user_text},
-            {"type": "image_url", "image_url": {"url": image_data_url}},
+    def with_image_messages() -> list[dict[str, Any]]:
+        return [
+            {"role": "system", "content": CHECK_SYSTEM},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_only},
+                    {"type": "image_url", "image_url": {"url": image_data_url}},
+                ],
+            },
         ]
-    else:
-        user_content = user_text
 
+    def text_only_messages() -> list[dict[str, Any]]:
+        return [
+            {"role": "system", "content": CHECK_SYSTEM},
+            {"role": "user", "content": text_only},
+        ]
+
+    used_image = wants_image
     try:
         raw = chat(
-            [
-                {"role": "system", "content": CHECK_SYSTEM},
-                {"role": "user", "content": user_content},
-            ],
+            with_image_messages() if wants_image else text_only_messages(),
             max_tokens=500,
             temperature=0.2,
-            model=vision_model,
+            model=settings.vision_model if wants_image else None,
         )
     except ModelError as exc:
-        return _fallback(
-            f"这次没能判定：{exc}", "模型没调通，别把这条当结论。"
-        )
+        # 有些模型收不了图会直接 400。退一步：只拿文字再判一次，别让整条判定白跑。
+        if wants_image and exc.status == 400:
+            used_image = False
+            try:
+                raw = chat(text_only_messages(), max_tokens=500, temperature=0.2)
+            except ModelError as retry_exc:
+                return _fallback(f"这次没能判定：{retry_exc}", "模型没调通，别把这条当结论。")
+        else:
+            return _fallback(f"这次没能判定：{exc}", "模型没调通，别把这条当结论。")
+
+    if not image_data_url:
+        image_note = ""
+    elif used_image:
+        image_note = "模型看了你发的照片。"
+    elif settings.model_vision_enabled:
+        image_note = "这次的模型没能读你的照片，判定只基于你写的文字。"
+    else:
+        image_note = "照片只留给你自己对照（配置里关掉了发图），判定只基于你写的文字。"
 
     parsed = parse_loose_json(raw)
     verdict = _normalize_verdict(parsed.get("verdict") if parsed else None)
@@ -266,20 +285,14 @@ def check_step(step: Any, report: str, image_data_url: str | None = None) -> Che
     reason = str(parsed.get("reason") or "").strip() or "模型没有给理由。"
     detail = str(parsed.get("detail") or "").strip()
 
-    notes = []
-    if used_image:
-        notes.append("模型看了你发的照片。")
-    elif image_data_url:
-        notes.append("照片只发给你自己对照，这个模型看不了图，判定只基于你的文字描述。")
-    notes.append("模型没看过这个视频，判定依据是合格标准和你自己的描述。")
-
+    note = image_note + "模型没看过这个视频，判定依据是合格标准和你自己的描述。"
     return CheckOutcome(
         verdict=verdict,
         reason=reason,
         detail=detail if verdict == "retry" else "",
         basis="model",
-        note="".join(notes),
-        model_name=vision_model or settings.model_name,
+        note=note,
+        model_name=settings.vision_model if used_image else settings.model_name,
     )
 
 

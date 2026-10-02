@@ -24,7 +24,7 @@
   - 支持「我做到了」勾选、「让小慢看看过没过」（模型按合格标准判定 通过/还差一点/说不清，通过会自动记成做到）、「卡住了问小慢」。
   - 步骤与进度都存在后端 SQLite（`tutorial_steps` / `step_interactions` 表），刷新不丢。
   - 分解是**真的**：`backend/app/video_analysis.py` 用 ffmpeg 找画面切点、抽代表帧，`breakdown.py` 把每段发给视觉模型写标题/说明/合格标准。模型只看到每段中间的一张截图，没听声音、没做字幕转写；拆不出来时退回通用骨架（`mock=true` + 诚实说明）。
-  - 判定/问答走 `backend/app/coach.py`，用与对话相同的 OpenAI 兼容配置；照片只有在配置了 `MODEL_VISION_NAME`（能看图的模型）时才会真的发给模型，否则只留给用户自己对照。
+  - 判定/问答走 `backend/app/coach.py`，用与对话相同的 OpenAI 兼容配置。照片默认一起发给模型（DeepSeek 的 `deepseek-chat` 实测能正确描述画面）；换成看不了图的模型时把 `MODEL_VISION_ENABLED` 设成 `false`，或用 `MODEL_VISION_NAME` 指定一个专门看图的模型。模型读不了照片会自动退一步只按文字判，并如实说明。
 - 使用 `MODEL_API_BASE` / `MODEL_API_KEY` / `MODEL_NAME` 指定的模型进行文字对话，默认是 OpenRouter 的 `inclusionai/ling-3.0-flash-sante:free` 免费模型，可切换为 DeepSeek 官方 API。
 - 本地视频预览，视频不会上传服务器。
 
