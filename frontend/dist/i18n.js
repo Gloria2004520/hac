@@ -229,10 +229,6 @@
     "library.back": { zh: "← 回到聊天", en: "← Back to chat" },
     "library.eyebrow": { zh: "教程素材库", en: "TUTORIAL LIBRARY" },
     "library.heading": { zh: "我的素材库", en: "My library" },
-    "library.intro": {
-      zh: "已经按真实画面拆好的教程会留在这里。AI 只按标题和代表截图写出的步骤分类，没有听音频或看完整视频。",
-      en: "Tutorials broken down from real frames stay here. AI classifies them only from the title and screenshot-derived steps; it does not hear the audio or watch the whole video.",
-    },
     "library.search_ph": { zh: "搜教程名…", en: "Search tutorials…" },
     "library.search_aria": { zh: "搜索素材", en: "Search the library" },
     "library.filters_aria": { zh: "素材分类", en: "Library categories" },
