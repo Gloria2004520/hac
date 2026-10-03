@@ -1,7 +1,11 @@
+import logging
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 # 仓库根目录，前后端共用同一个 .env
@@ -83,13 +87,19 @@ class Settings(BaseSettings):
     # yt-dlp 合并音视频要用它，找不到就会报 "ffmpeg is not installed"。
     ffmpeg_location: str | None = None
     yt_dlp_cookie_file: str | None = None
+    # 把 cookie 文件的**内容**整段贴进环境变量（容器里塞文件很麻烦，这条路最省事）。
+    # 必须是 Netscape 格式——浏览器 cookie 插件导出的那份原样贴进来即可，保留换行。
+    # 优先级：YT_DLP_COOKIE_FILE > YT_DLP_COOKIE_CONTENT > YT_DLP_COOKIE_BROWSER。
+    yt_dlp_cookie_content: str | None = None
     yt_dlp_cookie_browser: str | None = None
-    # 强制 yt-dlp 使用的 YouTube 客户端。数据中心 IP（Railway/Render 等）上不带 cookie
-    # 时，只有 android 系客户端能同时拿到元数据和可下载的媒体流（实测 android /
-    # android_vr 可用；web/mweb/tv 系被 SABR 流式或风控拦下）。⚠️ 且**必须不带 cookie**：
-    # 带 cookie 反而拿不到可下载格式（"The page needs to be reloaded" / 格式缺失）。
-    # 留空恢复 yt-dlp 默认行为（本地住宅 IP + cookie 的场景可以留空）。
-    yt_dlp_player_client: str = "android"
+    # 强制 yt-dlp 使用的 YouTube 客户端，"auto" 表示按有无 cookie 自动选：
+    #   有 cookie → "mweb"（认证走得通，配合 POT 提供器能拿到 720p 的 avc1 流；
+    #              android 客户端不支持 cookie，带了也会被 yt-dlp 跳过）；
+    #   无 cookie → "android"（数据中心 IP 上唯一免 cookie 能拿到媒体流的客户端）。
+    # 机房 IP（Railway 等）的完整配方 = cookie + mweb + bgutil POT 服务 + Deno(EJS)，
+    # 三者缺一不可，见 Dockerfile 与 scripts/start-production.sh。
+    # 也可以显式指定任意客户端名（android/mweb/tv/...）覆盖自动选择。
+    yt_dlp_player_client: str = "auto"
     allowed_video_domains: str = (
         "youtube.com,youtu.be,bilibili.com,b23.tv,tiktok.com,instagram.com"
     )
@@ -109,3 +119,47 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+@lru_cache
+def cookie_file() -> str | None:
+    """把「用哪份 cookie」统一成一个文件路径，三个来源按优先级取：
+
+    1. YT_DLP_COOKIE_FILE —— 已经有现成文件（本地开发最方便）；
+    2. YT_DLP_COOKIE_CONTENT —— cookie 文件的**内容**贴在环境变量里，
+       第一次用到时落成临时文件。容器部署塞文件麻烦，这条路最省事；
+    3. YT_DLP_COOKIE_BROWSER —— 直接读本机浏览器（仅本地开发可用）。
+
+    cookie 等同登录凭据：落出来的文件放在系统临时目录里、随容器一起消失，
+    绝不要把它写进仓库或镜像。
+    """
+    if settings.yt_dlp_cookie_file:
+        return settings.yt_dlp_cookie_file
+
+    content = (settings.yt_dlp_cookie_content or "").strip()
+    if not content:
+        return None
+
+    path = Path(tempfile.gettempdir()) / "cookclip-youtube-cookies.txt"
+    try:
+        path.write_text(content + "\n", encoding="utf-8", newline="\n")
+    except OSError as exc:
+        logger.warning("YouTube cookie 内容写不进临时文件（%s），本次当作没配 cookie。", exc)
+        return None
+    return str(path)
+
+
+def youtube_player_client() -> str | None:
+    """按 yt_dlp_player_client 的取值解析出本次该用的客户端：
+
+    - "auto"：配了 cookie 用 "mweb"（认证走得通且支持 cookie），否则 "android"
+      （数据中心 IP 上唯一免 cookie 能拿到媒体流的客户端）；
+    - 其他值：显式指定的客户端名，原样返回；
+    - 空字符串：交给 yt-dlp 默认行为。
+    """
+    client = (settings.yt_dlp_player_client or "").strip().lower()
+    if client and client != "auto":
+        return client
+    if cookie_file():
+        return "mweb"
+    return "android"

@@ -10,7 +10,7 @@ from pathlib import Path
 import yt_dlp
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.config import cookie_file, settings, youtube_player_client
 from app.database import SessionLocal
 from app.models import Video
 from app.storage import save_file
@@ -154,19 +154,23 @@ def download_video(video_id: str) -> None:
             "retries": 10,
             "fragment_retries": 15,
         }
-        if settings.yt_dlp_player_client:
-            # 数据中心 IP 场景：强制 android 系客户端，并且**不要带 cookie**——
-            # 实测带 cookie 反而拿不到可下载格式（见 config.py 里 yt_dlp_player_client 注释）。
+        cookie_path = cookie_file()
+        client = youtube_player_client()
+        if client:
+            # 客户端选择见 config.youtube_player_client：有 cookie 用 mweb（认证走得通、
+            # 配合 POT 提供器拿到 720p avc1 流），没 cookie 用 android（机房 IP 上唯一
+            # 免 cookie 能拿到媒体流的客户端）。
             common_options["extractor_args"] = {
-                "youtube": {"player_client": [settings.yt_dlp_player_client]}
+                "youtube": {"player_client": [client]}
             }
-        else:
-            if settings.yt_dlp_cookie_file:
-                common_options["cookiefile"] = settings.yt_dlp_cookie_file
-            elif settings.yt_dlp_cookie_browser == "chrome":
-                host = (urlparse(video.source_url).hostname or "").lower()
-                if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
-                    common_options["cookiesfrombrowser"] = ("chrome",)
+        if cookie_path:
+            common_options["cookiefile"] = cookie_path
+        elif settings.yt_dlp_cookie_browser == "chrome" and not client:
+            # 注意：android 客户端不支持 cookie，强制它的时候不要再挂浏览器 cookie，
+            # 否则 yt-dlp 会把唯一能用的客户端跳过、直接拿不到任何格式。
+            host = (urlparse(video.source_url).hostname or "").lower()
+            if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
+                common_options["cookiesfrombrowser"] = ("chrome",)
         ffmpeg_path = _ffmpeg_location()
         if ffmpeg_path:
             common_options["ffmpeg_location"] = ffmpeg_path
