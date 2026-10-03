@@ -55,7 +55,7 @@
     .chip b{display:block;font-size:12px;font-weight:600;line-height:1.5;min-height:36px}
     .chip u{display:block;text-decoration:none;font-size:10.5px;color:#4b7a45;margin-top:5px}
     .card{background:var(--paper);border:1px solid #eee7d2;border-radius:19px;padding:18px;margin-top:14px;overflow:hidden}
-    .badge{display:inline-block;font-size:10.5px;background:#f6efd6;color:#8a7c4e;border-radius:9px;padding:4px 8px;margin-bottom:10px}
+    .badge{display:inline-block;font-size:10.5px;background:#f6efd6;color:#8a7c4e;border-radius:9px;padding:4px 8px;margin-bottom:10px}.badge[hidden]{display:none}
     .badge.ok{background:#e8f2e4;color:#4b7a45}
     .badge.retry{background:#f8e5df;color:#9c493d}
     .frame{display:block;width:100%;border-radius:13px;background:#eee8d9;margin:-4px 0 12px}
@@ -460,9 +460,20 @@
       renderClip(step);
       renderWatch(step);
 
-      const parts = [t(BASIS_KEY[step.basis] || "steps.badge_fallback")];
-      parts.push(step.text_basis ? t(TEXT_BASIS_KEY[step.text_basis] || "steps.badge_none") : "");
-      $("stepBadge").textContent = parts.filter(Boolean).join(" · ");
+      // 这条徽标是在交代「步骤是怎么来的」，兜底情况（通用骨架 / 人工示例 / 平均分）
+      // 必须如实说，不能藏。只有拆得顺利时（真实切点 + 模型看图写的）才不标，
+      // 免得每一步都顶着一句说明。
+      const badge = $("stepBadge");
+      const isClean = step.basis === "shots" && (!step.text_basis || step.text_basis === "model");
+      if (isClean) {
+        badge.hidden = true;
+        badge.textContent = "";
+      } else {
+        const parts = [t(BASIS_KEY[step.basis] || "steps.badge_fallback")];
+        parts.push(step.text_basis ? t(TEXT_BASIS_KEY[step.text_basis] || "steps.badge_none") : "");
+        badge.textContent = parts.filter(Boolean).join(" · ");
+        badge.hidden = false;
+      }
 
       $("stepTitle").textContent = step.title || t("common.no_title");
       $("stepSummary").textContent = step.summary;
