@@ -174,6 +174,14 @@ Windows 上 ffmpeg 不在 PATH 里时，把 `FFMPEG_LOCATION` 指到它的 `bin`
 cd frontend && node server.cjs    # http://127.0.0.1:8766/
 ```
 
+前端同时也是一个 PWA：手机上「添加到主屏幕」/「安装应用」即可全屏打开、有自己的图标
+（见 `frontend/README.zh-CN.md`）。想在同一网络下的手机上打开，先把 `.env` 里的
+`HOST` 设成 `0.0.0.0`，启动日志会打印局域网地址。这个 demo 没有登录，
+建议用自己的手机热点而不是公共 WiFi，用完改回来。
+
+从环境搭建、启动、手机访问到演示收尾的完整清单（含 Windows 防火墙、macOS 本地网络权限这些坑），
+见 [`docs/demo-runbook.zh-CN.md`](docs/demo-runbook.zh-CN.md)。
+
 ## 原型限制
 
 聊天中的教程问题会调用 FastAPI 在 YouTube 实时检索。点击结果会在当前聊天页弹窗播放 YouTube 原视频；

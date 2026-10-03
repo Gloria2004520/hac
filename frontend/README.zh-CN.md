@@ -19,6 +19,21 @@
 `/api/videos*` 与 `/api/saved-tutorials` 原样转发给 `VIDEO_BACKEND_URL`。
 （`/api/search` 只由后端自己对外提供，浏览器不直接调它。）
 
+## 装成 App 用（PWA）
+
+这三个页面就是一个 PWA：`dist/manifest.webmanifest` 加 `dist/sw.js`，图标在 `dist/icons/`。
+手机上打开网站后，「添加到主屏幕」（iOS Safari）或「安装应用」（Android Chrome）即可，
+全屏打开、有自己的图标，不用上架也不用重写页面。
+
+Service worker 只缓存应用外壳。`/api/*` 一律**不缓存**：步骤进度、下载状态、视频流都是
+实时数据，缓存了就会把上一次的结果当成这一次的。页面导航走 network-first、断网退回缓存，
+所以演示到一半 WiFi 抖了，页面照样能开。改了 `SHELL_ASSETS` 里任何一项，记得把 `sw.js`
+里的 `VERSION` 升一位。
+
+想在手机上通过局域网打开：`.env` 里设 `HOST=0.0.0.0` 再重启，启动日志会打印局域网地址。
+这个 demo 没有登录，开到局域网 = 同一 WiFi 的人都能用你的后端和模型密钥，
+建议用自己的手机热点而不是公共网络，用完改回来。
+
 ## 三个页面
 
 | 页面 | 做什么 |

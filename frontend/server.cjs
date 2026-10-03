@@ -1,5 +1,6 @@
 const http = require("node:http");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { Readable } = require("node:stream");
 const { searchYoutubeForChat } = require("./chat-search.cjs");
@@ -17,6 +18,9 @@ if (fs.existsSync(envPath)) {
 
 const videoBackendUrl = (process.env.VIDEO_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const port = Number.parseInt(process.env.PORT || "8766", 10);
+// 默认只绑本机（和原来一样安全）。要在手机上用的话，把 .env 里的 HOST 设成 0.0.0.0，
+// 服务会顺带把局域网地址打印出来，手机连同一个 WiFi 直接打开就行。
+const host = process.env.HOST || "127.0.0.1";
 // 对话模型配置：默认使用 OpenRouter 免费模型，任何 OpenAI 兼容接口都可以用环境变量替换
 const modelApiBase = (process.env.MODEL_API_BASE || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
 const modelApiKey = process.env.MODEL_API_KEY || process.env.OPENROUTER_API_KEY || "";
@@ -136,6 +140,16 @@ const CHAT_STRINGS = {
 
 const chatText = (key, lang) => CHAT_STRINGS[key][lang] || CHAT_STRINGS[key].zh;
 
+function lanAddresses() {
+  const found = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const net of list || []) {
+      if (net.family === "IPv4" && !net.internal) found.push(net.address);
+    }
+  }
+  return found;
+}
+
 function parseReply(content) {
   let text = content.trim().replace(/^\x60{3}(?:json)?\s*/i, "").replace(/\s*\x60{3}$/, "");
   for (let i = 0; i < 3; i += 1) {
@@ -197,6 +211,20 @@ async function requestModel(messages, lang) {
 }
 
 let busy = false;
+
+// PWA 的静态资源（manifest、service worker、图标）也在 dist 下。
+// 只放行「最多一层子目录 + 白名单扩展名」，且每段只允许字母数字下划线连字符，
+// 所以拼不出 ..，也到不了 dist 之外。
+const ASSET_MIME = {
+  ".js": "text/javascript; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+};
+const ASSET_MATCH = /^\/([A-Za-z0-9_-]+\/)?([A-Za-z0-9_-]+\.(?:js|webmanifest|json|png|svg|ico))$/;
+
 const reply = (res, status, data) => {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -376,13 +404,13 @@ http.createServer(async (req, res) => {
     "/steps.html": "steps.html",
   };
   if (req.method !== "GET" || !pages[pathname]) {
-    // 页面之外还有静态资源（i18n.js）：只放行 dist 下的 .js，路径拼不进别的目录
-    const assetMatch = req.method === "GET" && pathname.match(/^\/([A-Za-z0-9_-]+\.js)$/);
+    const assetMatch = req.method === "GET" && pathname.match(ASSET_MATCH);
     if (assetMatch) {
-      const assetPath = path.join(root, "dist", assetMatch[1]);
-      if (fs.existsSync(assetPath)) {
+      const assetPath = path.join(root, "dist", assetMatch[1] || "", assetMatch[2]);
+      const contentType = ASSET_MIME[path.extname(assetPath).toLowerCase()];
+      if (contentType && fs.existsSync(assetPath)) {
         res.writeHead(200, {
-          "Content-Type": "text/javascript; charset=utf-8",
+          "Content-Type": contentType,
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
         });
@@ -398,4 +426,13 @@ http.createServer(async (req, res) => {
     "X-Content-Type-Options": "nosniff",
   });
   return fs.createReadStream(path.join(root, "dist", pages[pathname])).pipe(res);
-}).listen(port, "127.0.0.1", () => console.log(`Local demo: http://127.0.0.1:${port}`));
+}).listen(port, host, () => {
+  if (host === "127.0.0.1") {
+    return console.log(`Local demo: http://127.0.0.1:${port}`);
+  }
+  // 绑到 0.0.0.0 时把局域网地址列出来，手机连同一个 WiFi 直接扫码/输入就能用
+  console.log(`Local demo: http://127.0.0.1:${port}`);
+  for (const address of lanAddresses()) {
+    console.log(`  on your phone: http://${address}:${port}`);
+  }
+});

@@ -6,6 +6,13 @@
   <meta name="theme-color" content="#fbf6df">
   <title>一步步做 · 慢慢来</title>
   <script src="/i18n.js"></script>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="慢慢来">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" href="/icons/favicon-32.png" sizes="32x32">
   <style>
     :root{--ink:#494638;--muted:#96917e;--yellow:#f8d65b;--paper:#fffdf7;--bg:#fcf9ed;--line:#ece3cb}
     *{box-sizing:border-box}
@@ -866,6 +873,11 @@
         showEmpty(t("steps.empty_read_fail") + error.message);
       }
     })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>
