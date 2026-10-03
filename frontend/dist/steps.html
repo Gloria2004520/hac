@@ -52,6 +52,12 @@
     .badge.retry{background:#f8e5df;color:#9c493d}
     .frame{display:block;width:100%;border-radius:13px;background:#eee8d9;margin:-4px 0 12px}
     .frame[hidden]{display:none}
+    #stepClip{cursor:pointer;background:#e9e1cd}
+    .clipmeta{display:flex;align-items:center;gap:10px;margin:-6px 2px 14px}
+    .clipmeta[hidden]{display:none}
+    .clipbar{flex:1 1 auto;height:7px;background:#e7dfc4;border-radius:10px;cursor:pointer;overflow:hidden}
+    .clipbar i{display:block;height:100%;width:0;background:var(--yellow);border-radius:10px}
+    .cliptime{flex:0 0 auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
     h2{font-size:18px;line-height:1.5;margin:0 0 9px;font-weight:750}
     h3{font-size:14.5px;margin:0 0 6px;font-weight:700}
     .summary{font-size:13px;line-height:1.85;color:#7d7663;margin:0}
@@ -126,7 +132,12 @@
         <div class="chips" id="chips"></div>
 
         <article class="card">
+          <video class="frame" id="stepClip" playsinline muted preload="metadata" aria-label="这一步在原视频里的那一小段，自动循环播放" hidden></video>
           <img class="frame" id="stepFrame" alt="这一步在原视频里的画面" hidden>
+          <div class="clipmeta" id="clipMeta" hidden>
+            <div class="clipbar" id="clipBar" role="slider" tabindex="0" aria-label="这一小段的进度，点一下可以跳到那一段的任意位置" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="clipFill"></i></div>
+            <span class="cliptime" id="clipTime"></span>
+          </div>
           <span class="badge" id="stepBadge">…</span>
           <h2 id="stepTitle"></h2>
           <p class="summary" id="stepSummary"></p>
@@ -173,6 +184,10 @@
     const videoId = new URLSearchParams(location.search).get("id");
     let steps = [], activeIndex = 0, pendingImage = null, busy = false;
     let toastTimer = null, pollTimer = null, pollRounds = 0;
+    // 每步的代表画面 = 本地 MP4 里对应的一小段（自己在这一段里循环）；播不了才退回截图
+    const CLIP_URL = "/api/videos/" + encodeURIComponent(videoId) + "/content";
+    let clipRange = null, clipRaf = 0, clipStepId = null, clipBroken = false;
+    let clipFillWidth = "", clipTimeLabel = "";
     // 步骤条的鼠标拖拽（触屏天生就能横滑，不用管）
     let dragState = null, dragMoved = false;
 
@@ -302,7 +317,49 @@
       }));
     }
 
-    function renderFrame(step) {
+    function frameUrl(step) {
+      return "/api/videos/" + encodeURIComponent(videoId)
+        + "/steps/" + encodeURIComponent(step.id) + "/frame";
+    }
+
+    function stopClip() {
+      if (clipRaf) cancelAnimationFrame(clipRaf);
+      clipRaf = 0;
+      const clip = $("stepClip");
+      clip.pause();
+      clip.hidden = true;
+      $("clipMeta").hidden = true;
+    }
+
+    // 这一小段的进度条：量的是「这一段放到哪儿了」，不是整条视频播到哪儿了
+    function renderClipProgress() {
+      const clip = $("stepClip");
+      const meta = $("clipMeta");
+      if (!clipRange || clipBroken || clip.hidden) { meta.hidden = true; return; }
+      const span = clipRange.end - clipRange.start;
+      const played = Math.min(Math.max(clip.currentTime - clipRange.start, 0), span);
+      const ratio = span > 0 ? played / span : 0;
+
+      const width = (ratio * 100).toFixed(1) + "%";
+      if (width !== clipFillWidth) { clipFillWidth = width; $("clipFill").style.width = width; }
+      const label = formatDuration(played) + " / " + formatDuration(span);
+      if (label !== clipTimeLabel) { clipTimeLabel = label; $("clipTime").textContent = label; }
+      $("clipBar").setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      meta.hidden = false;
+    }
+
+    function seekClipByRatio(ratio) {
+      const clip = $("stepClip");
+      if (!clipRange || clip.readyState < 1) return;
+      const span = clipRange.end - clipRange.start;
+      const target = clipRange.start + Math.min(Math.max(ratio, 0), 1) * span;
+      clip.currentTime = Math.max(clipRange.start, Math.min(target, clipRange.end - 0.05));
+      renderClipProgress();
+      if (!clipRaf) clipRaf = requestAnimationFrame(watchClip); // 拖着看的时候进度条也得跟着走
+    }
+
+    // 播不了的时候的老办法：一张静态截图。有就露，没有就整个藏起来
+    function showStillFrame(step) {
       const frame = $("stepFrame");
       if (!step.has_frame) {
         frame.hidden = true;
@@ -311,8 +368,63 @@
       }
       frame.onerror = () => { frame.hidden = true; };
       frame.onload = () => { frame.hidden = false; };
-      frame.src = "/api/videos/" + encodeURIComponent(videoId)
-        + "/steps/" + encodeURIComponent(step.id) + "/frame";
+      frame.src = frameUrl(step);
+    }
+
+    function watchClip() {
+      const clip = $("stepClip");
+      if (!clipRange || clip.hidden) { clipRaf = 0; renderClipProgress(); return; }
+      // 放到这一步的结尾 → 悄悄回开头，接着放（不用 loop 属性，那会从头播整条视频）
+      if (!clip.paused && clip.currentTime >= clipRange.end - 0.05) {
+        clip.currentTime = clipRange.start;
+      }
+      renderClipProgress();
+      clipRaf = requestAnimationFrame(watchClip);
+    }
+
+    function playClipFrom(start) {
+      const clip = $("stepClip");
+      if (clip.readyState < 1) return;
+      clip.hidden = false;
+      if (Math.abs(clip.currentTime - start) > 0.25) clip.currentTime = start;
+      clip.play().catch(() => {});
+      renderClipProgress();
+      if (!clipRaf) clipRaf = requestAnimationFrame(watchClip);
+    }
+
+    function renderClip(step) {
+      const clip = $("stepClip");
+      const start = Number(step.start_seconds), end = Number(step.end_seconds);
+      const canPlay = !clipBroken && Number.isFinite(start) && Number.isFinite(end) && end > start;
+      if (!canPlay) {
+        clipRange = null;
+        stopClip();
+        showStillFrame(step);
+        return;
+      }
+
+      $("stepFrame").hidden = true; // 有得播了，静态截图先退场
+      clipRange = { start, end };
+
+      if (clipStepId !== step.id) {
+        clipStepId = step.id;
+        stopClip();
+        // 先挂这一步的截图当海报：画面没出来之前不至于是个空框，尺寸也稳
+        clip.poster = step.has_frame ? frameUrl(step) : "";
+        if (clip.dataset.clipUrl !== CLIP_URL) {
+          clip.dataset.clipUrl = CLIP_URL;
+          clip.src = CLIP_URL;
+        }
+        clip.hidden = false;
+        clipFillWidth = "";
+        clipTimeLabel = "";
+        renderClipProgress();
+      } else if (clip.hidden) {
+        clip.hidden = false;
+        renderClipProgress();
+      }
+      // 这一步的内容没变（比如刚勾完「我做到了」重画），别打断正在放的那一段
+      playClipFrom(start);
     }
 
     function renderWatch(step) {
@@ -326,7 +438,7 @@
       const query = "start=" + encodeURIComponent(step.start_seconds)
         + "&end=" + encodeURIComponent(step.end_seconds);
       link.href = "/video.html?id=" + encodeURIComponent(videoId) + "&" + query;
-      link.textContent = "▶ 只看这一段 · " + formatDuration(start) + "–" + formatDuration(end);
+      link.textContent = "▶ 在整条视频里看这段 · " + formatDuration(start) + "–" + formatDuration(end);
       link.hidden = false;
     }
 
@@ -334,7 +446,7 @@
       const step = activeStep();
       if (!step) return;
 
-      renderFrame(step);
+      renderClip(step);
       renderWatch(step);
 
       const parts = [BASIS_TEXT[step.basis] || "步骤"];
@@ -650,6 +762,54 @@
     }
 
     $("doneBtn").addEventListener("click", toggleDone);
+    // 这一小段视频：元数据到了就跳到这一步的起点开播，点一下暂停/继续
+    $("stepClip").addEventListener("loadedmetadata", () => {
+      if (clipRange) playClipFrom(clipRange.start);
+    });
+    $("stepClip").addEventListener("click", () => {
+      const clip = $("stepClip");
+      if (clip.readyState < 1 || !clipRange) return;
+      if (clip.paused) playClipFrom(clip.currentTime);
+      else clip.pause();
+    });
+    $("stepClip").addEventListener("error", () => {
+      // 这条视频放不出来（文件没了 / 浏览器不认这个格式）：不再反复试，老实退回截图
+      clipBroken = true;
+      clipRange = null;
+      stopClip();
+      const step = activeStep();
+      if (step) showStillFrame(step);
+    });
+    // 这一段自己的进度条：点哪儿/拖到哪儿就跳到这一段的哪儿
+    $("clipBar").addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const bar = $("clipBar");
+      const seek = (clientX) => {
+        const rect = bar.getBoundingClientRect();
+        if (!rect.width) return;
+        seekClipByRatio((clientX - rect.left) / rect.width);
+      };
+      seek(event.clientX);
+      const onMove = (moveEvent) => seek(moveEvent.clientX);
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+    $("clipBar").addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const clip = $("stepClip");
+      if (!clipRange) return;
+      event.preventDefault();
+      const span = clipRange.end - clipRange.start;
+      if (span <= 0) return;
+      // 左右键各走这一段的 5%
+      seekClipByRatio((clip.currentTime - clipRange.start) / span + (event.key === "ArrowRight" ? 0.05 : -0.05));
+    });
     setupChipsScroll();
     $("checkBtn").addEventListener("click", runCheck);
     $("askBtn").addEventListener("click", runAsk);
