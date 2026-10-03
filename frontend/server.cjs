@@ -397,13 +397,15 @@ http.createServer(async (req, res) => {
     return fs.createReadStream(path.join(root, "dist", "assets", "library", libraryAssets[pathname])).pipe(res);
   }
   if (req.method !== "GET" || !pages[pathname]) {
-    // 页面之外还有静态资源（i18n.js）：只放行 dist 下的 .js，路径拼不进别的目录
-    const assetMatch = req.method === "GET" && pathname.match(/^\/([A-Za-z0-9_-]+\.js)$/);
+    // 页面之外还有共享的 JS/CSS：只放行 dist 根目录下的单个文件，路径拼不进别的目录
+    const assetMatch = req.method === "GET" && pathname.match(/^\/([A-Za-z0-9_-]+\.(?:js|css))$/);
     if (assetMatch) {
       const assetPath = path.join(root, "dist", assetMatch[1]);
       if (fs.existsSync(assetPath)) {
         res.writeHead(200, {
-          "Content-Type": "text/javascript; charset=utf-8",
+          "Content-Type": assetMatch[1].endsWith(".css")
+            ? "text/css; charset=utf-8"
+            : "text/javascript; charset=utf-8",
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
         });

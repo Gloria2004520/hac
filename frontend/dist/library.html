@@ -43,5 +43,6 @@
     $('search').addEventListener('input',event=>{state.query=event.target.value.trim();render()});
     (async()=>{try{const response=await fetch('/api/library',{cache:'no-store'});const raw=await response.text();let data;try{data=JSON.parse(raw)}catch{throw Error('服务返回了无法识别的响应')}if(!response.ok)throw Error(data.detail||data.error||'暂时读不到素材库');state.items=Array.isArray(data)?data:[];$('loading').hidden=true;render()}catch(error){$('loading').hidden=true;$('empty').hidden=false;$('emptyTitle').textContent='素材库暂时打不开';$('emptyTitle').className='error';$('emptyText').textContent=error.message}})();
   </script>
+  <script src="/app-nav.js"></script>
 </body>
 </html>

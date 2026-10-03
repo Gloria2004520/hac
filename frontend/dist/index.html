@@ -53,12 +53,4 @@ savedCache=loadSavedCache();loadSavedEntry();if(new URLSearchParams(location.sea
 I18N.apply();I18N.bootLanguageSwitch();document.title=I18N.t('home.title');
 document.addEventListener('langchange',()=>{I18N.apply();document.title=I18N.t('home.title');drawQueries();if(savedCache&&savedCache.length&&!$('savedEntry').hidden)$('savedCount').textContent=I18N.t('home.saved_count',{n:savedCache.length});const body=$('modalBody');if($('modal').open&&body.dataset.view==='saved')renderSaved(body,savedCache||[],false)});
 
-// 素材库入口：已经拆好的教程按分类浏览（本地新增）
-const libraryEntry=document.createElement('button');
-libraryEntry.className='saved-entry';
-libraryEntry.style.background='#f8e9e2';
-libraryEntry.style.borderColor='#ead2c7';
-libraryEntry.innerHTML='<span>▦</span>已经拆好的素材库<em>按分类看看 →</em>';
-libraryEntry.onclick=()=>location.assign('/library.html');
-$('savedEntry').before(libraryEntry);
-</script></body></html>
+</script><script src="/app-nav.js"></script></body></html>

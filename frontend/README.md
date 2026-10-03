@@ -37,7 +37,7 @@ unchanged. (`/api/search` is served by the backend only; the browser does not ca
 ## What works today
 
 - Chat home; tapping a suggested question sends it.
-- A material-library entry on the home page. The library only lists tutorials whose latest real
+- A shared two-tab bottom navigation keeps Home and Material Library one tap away on every page. The library only lists tutorials whose latest real
   breakdown succeeded; failed generic skeletons are not presented as completed material. The default
   free model classifies from the title and screenshot-derived step titles, with title keywords as the
   fallback; neither is presented as understanding the whole video.
