@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.config import cookie_file, settings, youtube_player_client
 from app.models import SearchCache
 
 
@@ -157,17 +157,18 @@ def _run_search_process(query: str) -> dict[str, Any]:
         "--no-warnings",
         "--ignore-errors",
     ]
-    if settings.yt_dlp_player_client:
-        # 数据中心 IP 场景：强制 android 系客户端（此时不要带 cookie，见 config.py 注释）。
+    client = youtube_player_client()
+    if client:
+        # 客户端选择逻辑与 tasks.py 一致（cookie 在手上用 mweb，否则 android）。
         command.extend(
             [
                 "--extractor-args",
-                f"youtube:player_client={settings.yt_dlp_player_client}",
+                f"youtube:player_client={client}",
             ]
         )
-    else:
-        if settings.yt_dlp_cookie_file:
-            command.extend(["--cookies", settings.yt_dlp_cookie_file])
+    cookie_path = cookie_file()
+    if cookie_path:
+        command.extend(["--cookies", cookie_path])
 
     process = subprocess.Popen(
         command,
