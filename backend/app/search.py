@@ -157,8 +157,17 @@ def _run_search_process(query: str) -> dict[str, Any]:
         "--no-warnings",
         "--ignore-errors",
     ]
-    if settings.yt_dlp_cookie_file:
-        command.extend(["--cookies", settings.yt_dlp_cookie_file])
+    if settings.yt_dlp_player_client:
+        # 数据中心 IP 场景：强制 android 系客户端（此时不要带 cookie，见 config.py 注释）。
+        command.extend(
+            [
+                "--extractor-args",
+                f"youtube:player_client={settings.yt_dlp_player_client}",
+            ]
+        )
+    else:
+        if settings.yt_dlp_cookie_file:
+            command.extend(["--cookies", settings.yt_dlp_cookie_file])
 
     process = subprocess.Popen(
         command,
