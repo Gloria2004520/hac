@@ -26,6 +26,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "zh": "视频还在下载。下载完我会自动按画面把它拆成一步步，到时候刷新这一页就行。",
         "en": "The video is still downloading. Once it's here I'll break it into steps from the frames automatically — just refresh this page then.",
     },
+    "note.translation_unavailable": {
+        "zh": "这一页的英文翻译暂时取不到（翻译服务没响应），先显示中文原文。",
+        "en": "The English translation isn't ready yet (the translator didn't respond), so the original Chinese text is shown for now.",
+    },
+    "note.steps_english_only": {
+        "zh": "这版步骤是英文模式下生成的，卡片文字是英文。想要中文的话，用「重新分解」按中文重拆一次就好。",
+        "en": "These steps were generated in English mode, so the card text is in English. To get Chinese, hit re-break and regenerate in Chinese.",
+    },
     # ---- 步骤相关接口的报错 ----
     "error.video_not_found": {"zh": "任务不存在", "en": "This task doesn't exist"},
     "error.video_not_ready": {

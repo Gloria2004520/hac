@@ -231,6 +231,35 @@ CAPTION_SYSTEM = "\n".join(
     ]
 )
 
+# 英文请求（?lang=en）下直接让视觉模型写英文卡片，省掉一次中文→英文的二次翻译。
+# 诚实规则逐条对应中文版，一个都不能少。
+CAPTION_SYSTEM_EN = "\n".join(
+    [
+        "You are Slowly's hands-on companion, helping a kitchen beginner break one segment of a video into a step they can follow.",
+        "Below is one key frame from that segment. What you write is **not** \"what's in this picture\" — it's what someone watching this segment should do with their hands, where to look, and how to tell it's done.",
+        "",
+        "Voice (this matters most):",
+        "- Talk like a person standing next to them, use \"you\", short sentences, plain words.",
+        "- **Never** start with \"In the image\", \"This frame shows\", \"You can see\" — that's machine talk, not coaching talk.",
+        "- The title is one action instruction, like a line in a recipe, e.g. \"Slice the onion into thin strips along the grain\". "
+        "If you can tell what it is, name it (onion, cucumber, celery, broccoli…); only say \"this ingredient\" when you truly can't tell — "
+        "never write things nobody says like \"the white block\".",
+        "- The summary is one or two sentences: what this step is trying to achieve, then why (e.g. even thickness so it cooks evenly). "
+        "Don't recite what objects are on screen, their colors or materials.",
+        "- The question is one question the user can answer in a sentence after doing this step.",
+        "- The pass criteria must be a state you can confirm **with one look** — never \"done well\", \"about right\", \"as appropriate\".",
+        "",
+        "What you may and may not say:",
+        "- Never invent specific numbers (grams, degrees, minutes, oil temperature), brand names, people's names, "
+        "or phrases like \"the video says…\" / \"the host mentions…\".",
+        "- General kitchen common sense is allowed, but keep it conservative and hedged, never stated as the video's conclusion.",
+        "- If this frame is an intro, a title card, someone talking to camera, or an empty shot, honestly title it \"Opening intro\" / \"On-camera explanation\" — don't force it into an action step.",
+        "",
+        "Output JSON only, no code fences, no explanations:",
+        '{"title":"action instruction, max 12 words","summary":"one or two plain sentences","question":"one self-check question","criteria":"a state you can confirm by looking"}',
+    ]
+)
+
 
 def _data_url(jpeg: bytes) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(jpeg).decode("ascii")
@@ -250,26 +279,35 @@ def _clean_title(value: Any, limit: int = 40) -> str:
     return _TITLE_PREFIX.sub("", _clean_text(value, limit)).strip().strip("「」\"'")
 
 
-def caption_segment(segment: Segment, total: int, duration: float) -> Segment:
+def caption_segment(segment: Segment, total: int, duration: float, lang: str = "zh") -> Segment:
     """让视觉模型看一眼这一段的代表帧，把卡片文字填进去。
 
     永远不抛异常：模型没答上来就返回 text_basis="none"，
     让调用方如实告诉用户「这一段只有画面，标题要你自己看」。
+    lang="en" 时直接让模型写英文（存进 en_* 逻辑由调用方负责，这里只管生成语言）。
     """
     if not settings.model_key or not settings.model_vision_enabled:
         segment.text_basis = NO_TEXT
         return segment
 
-    prompt = (
-        f"这段视频总长 {duration:.0f} 秒，我按画面变化把它切成了 {total} 段。\n"
-        f"这是第 {segment.position + 1} 段（原视频 {segment.start_seconds:.0f}~{segment.end_seconds:.0f} 秒）"
-        "的代表画面。\n"
-        "照上面的要求，给这一段写一张陪做卡片。"
-    )
+    english = lang == "en"
+    if english:
+        prompt = (
+            f"This video is {duration:.0f} seconds long and I split it into {total} segments by picture changes.\n"
+            f"This is segment {segment.position + 1} (original video {segment.start_seconds:.0f}–{segment.end_seconds:.0f} s), its key frame attached.\n"
+            "Following the rules above, write a companion card for this segment in English."
+        )
+    else:
+        prompt = (
+            f"这段视频总长 {duration:.0f} 秒，我按画面变化把它切成了 {total} 段。\n"
+            f"这是第 {segment.position + 1} 段（原视频 {segment.start_seconds:.0f}~{segment.end_seconds:.0f} 秒）"
+            "的代表画面。\n"
+            "照上面的要求，给这一段写一张陪做卡片。"
+        )
     try:
         raw = chat(
             [
-                {"role": "system", "content": CAPTION_SYSTEM},
+                {"role": "system", "content": CAPTION_SYSTEM_EN if english else CAPTION_SYSTEM},
                 {
                     "role": "user",
                     "content": [
@@ -300,7 +338,8 @@ def caption_segment(segment: Segment, total: int, duration: float) -> Segment:
         segment.text_basis = NO_TEXT
         return segment
 
-    segment.title = f"第 {segment.position + 1} 步 · {title}"
+    prefix = f"Step {segment.position + 1} · " if english else f"第 {segment.position + 1} 步 · "
+    segment.title = f"{prefix}{title}"
     segment.summary = summary
     segment.question = question
     segment.criteria = criteria
@@ -310,8 +349,17 @@ def caption_segment(segment: Segment, total: int, duration: float) -> Segment:
     return segment
 
 
-def _placeholder_text(position: int, start: float, end: float) -> tuple[str, str, str, str, str | None]:
+def _placeholder_text(position: int, start: float, end: float, lang: str = "zh") -> tuple[str, str, str, str, str | None]:
     """没有模型时，只给「这一段是真实画面切出来的」这个事实，绝不编内容。"""
+    if lang == "en":
+        return (
+            f"Step {position + 1} · The picture cuts to a new segment here",
+            f"This segment boundary comes from the picture itself ({start:.0f}–{end:.0f} s), but no vision model was "
+            "available this time, so I can't tell what it's doing yet. Look at the screenshot above and write down what this step is.",
+            "Looking at this screenshot, can you say what this step is doing?",
+            "The description you wrote yourself matches what's in the screenshot.",
+            "Pause on the screenshot first and say in one sentence what's happening in the picture, then move on.",
+        )
     return (
         f"第 {position + 1} 步 · 画面切到新的这一段",
         f"这一段是画面自己切出来的（{start:.0f}~{end:.0f} 秒），但这次没有能看图的模型，"
@@ -322,8 +370,8 @@ def _placeholder_text(position: int, start: float, end: float) -> tuple[str, str
     )
 
 
-def _blank_segment(position: int, start: float, end: float, frame: bytes) -> Segment:
-    title, summary, question, criteria, hint = _placeholder_text(position, start, end)
+def _blank_segment(position: int, start: float, end: float, frame: bytes, lang: str = "zh") -> Segment:
+    title, summary, question, criteria, hint = _placeholder_text(position, start, end, lang)
     return Segment(
         position=position,
         start_seconds=start,
@@ -368,14 +416,66 @@ def real_note(breakdown: Breakdown) -> str:
     return "".join(parts)
 
 
+def real_note_en(record) -> str:
+    """英文版诚实说明。与 real_note 同源同数据，英文请求（?lang=en）下用这份。
+
+    record 是落库后的 TutorialBreakdown 行（method/cuts_json/segment_count/
+    captioned_count/frame_count 都在），说明只按真实数据生成，一个字都不编。
+    """
+    import json as _json
+
+    try:
+        cuts = _json.loads(record.cuts_json or "[]")
+    except ValueError:
+        cuts = []
+    captioned = record.captioned_count
+    uncaptioned = max(record.segment_count - captioned, 0)
+    parts: list[str] = []
+
+    if record.method == SHOT_BASIS:
+        parts.append(
+            f"This is a real breakdown: ffmpeg found where the picture actually cuts "
+            f"({len(cuts)} cuts, {record.segment_count} segments), then a vision model read "
+            f"each segment's key frame and wrote the titles and pass criteria. "
+        )
+    else:
+        parts.append(
+            f"This video barely changes on screen, so no real step boundaries could be detected — "
+            f"I split it evenly by total duration into {record.segment_count} segments. "
+            f"The boundaries are mine, not cut from the picture. "
+        )
+
+    if captioned:
+        parts.append(
+            "To be clear: the model only sees one screenshot per segment, not the whole segment, "
+            "and it never hears the audio. So it writes \"what's in this frame\" — burned-in "
+            "subtitles are visible (they're painted onto the picture), but what the video says or "
+            "why it does things this way is unknown. Check it against the picture before you take "
+            "it as fact. "
+        )
+    if uncaptioned:
+        parts.append(
+            f"For {uncaptioned} of those segments the model had no answer, so they only keep a "
+            f"screenshot — the title is yours to fill in from the picture. "
+        )
+    if not captioned:
+        parts.append(
+            "No vision model was available this time, so I only give the real cut points and each "
+            "segment's screenshot — nothing is made up."
+        )
+    return "".join(parts)
+
+
 def analyze(
     video_path: Path,
     *,
     on_step: Any | None = None,
+    lang: str = "zh",
 ) -> Breakdown:
     """对本地视频做一次真分解。失败一律抛 video_analysis.AnalysisError / OSError。
 
     流程：ffprobe 读时长 → ffmpeg 找画面切点 → 定段边界 → 逐段抽代表帧 → 模型看图写卡片。
+    lang="en" 时模型直接写英文卡片（?lang=en 的「重新分解」就不需要二次翻译了）。
     """
     info = video_analysis.probe_video(video_path)
 
@@ -403,7 +503,7 @@ def analyze(
         start, end = boundaries[index], boundaries[index + 1]
         at = video_analysis.frame_sample_time(start, end)
         frame = video_analysis.extract_frame(video_path, at)
-        breakdown.segments.append(_blank_segment(index, start, end, frame))
+        breakdown.segments.append(_blank_segment(index, start, end, frame, lang))
         if on_step:
             on_step(index + 1, len(boundaries) - 1)
 
@@ -413,7 +513,7 @@ def analyze(
         with ThreadPoolExecutor(max_workers=CAPTION_CONCURRENCY) as pool:
             breakdown.segments = list(
                 pool.map(
-                    lambda segment: caption_segment(segment, total, duration),
+                    lambda segment: caption_segment(segment, total, duration, lang),
                     breakdown.segments,
                 )
             )

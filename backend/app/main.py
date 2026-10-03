@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import breakdown as breakdown_module
+from app import translate as translate_module
 from app import video_analysis
 from app.breakdown import build_steps, mock_note
 from app.coach import ask_step, check_step
@@ -442,10 +443,12 @@ def _load_step(video_id: str, step_id: str, db: Session, lang: str = "zh") -> Tu
 # ---------- 真分解 ----------
 
 
-def build_breakdown(video_id: str, *, force: bool = False) -> str:
+def build_breakdown(video_id: str, *, force: bool = False, lang: str = "zh") -> str:
     """给一条视频做一次分解，结果落库。幂等：已经拆过就直接返回。
 
     自己开 session，因为要能在后台线程里跑。返回 "ready" / "failed" / "missing"。
+    lang 决定卡片文字的生成语言（英文请求直接生成英文，省掉二次翻译）；
+    落库列永远存生成原文，record.lang 记下它是什么语言。
     """
     session = SessionLocal()
     try:
@@ -464,9 +467,10 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
 
             result: breakdown_module.Breakdown | None = None
             failure: str | None = None
+            generation_lang = normalize(lang)
             if source is not None:
                 try:
-                    result = breakdown_module.analyze(source)
+                    result = breakdown_module.analyze(source, lang=generation_lang)
                 except (video_analysis.AnalysisError, OSError) as exc:
                     failure = str(exc)
                 except Exception as exc:  # 别让一个奇怪的视频把整个页面打死
@@ -480,6 +484,7 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
                 method=result.method if result else breakdown_module.MOCK_BASIS,
                 status="ready" if result else "failed",
                 error_message=failure,
+                lang=generation_lang,
                 duration_seconds=result.duration if result else video.duration_seconds,
                 width=result.width if result else None,
                 height=result.height if result else None,
@@ -532,9 +537,9 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
         session.close()
 
 
-def _run_breakdown_job(video_id: str, force: bool = False) -> None:
+def _run_breakdown_job(video_id: str, force: bool = False, lang: str = "zh") -> None:
     try:
-        build_breakdown(video_id, force=force)
+        build_breakdown(video_id, force=force, lang=lang)
     except Exception:  # 后台任务不能把异常抛到线程池外面
         logger.exception("后台分解 %s 崩了", video_id)
     finally:
@@ -549,7 +554,7 @@ def _start_analysis(video_id: str, *, force: bool = False, lang: str = "zh") -> 
             return
         _running_analyses.add(video_id)
     try:
-        submit(_run_breakdown_job, video_id, force)
+        submit(_run_breakdown_job, video_id, force, normalize(lang))
     except Exception:
         with _analysis_locks_guard:
             _running_analyses.discard(video_id)
@@ -569,6 +574,80 @@ def _needs_analysis(video: Video, record: TutorialBreakdown | None) -> bool:
     return record.method == breakdown_module.MOCK_BASIS and _local_video_path(video) is not None
 
 
+_EN_STEP_FIELDS = (
+    ("en_title", "title"),
+    ("en_summary", "summary"),
+    ("en_question", "question"),
+    ("en_criteria", "criteria"),
+    ("en_hint", "hint"),
+)
+
+
+def _step_is_translated(step: TutorialStep) -> bool:
+    return bool((step.en_title or "").strip())
+
+
+def _ensure_english_steps(steps: list[TutorialStep], db: Session) -> bool:
+    """英文模式下确保这批步骤有英文文案；缺就现翻一次并落库。
+
+    返回 True = 全都有英文（可能刚翻好）；False = 模型不可用/没答上来，
+    调用方诚实退回中文（_steps_response 会给出如实提示）。
+    """
+    missing = [step for step in steps if not _step_is_translated(step)]
+    if not missing:
+        return True
+    if not settings.model_key:
+        return False
+
+    result = translate_module.translate_steps(
+        [
+            {
+                "title": step.title,
+                "summary": step.summary,
+                "question": step.question,
+                "criteria": step.criteria,
+                "hint": step.hint,
+            }
+            for step in missing
+        ]
+    )
+    if result is None:
+        return False
+
+    for index, step in enumerate(missing):
+        translated = result.get(index)
+        if not translated:
+            continue  # 个别步骤没翻过：那几步保持中文（has_en 判断会兜住）
+        if translated.get("title"):
+            step.en_title = translated["title"]
+        if translated.get("summary"):
+            step.en_summary = translated["summary"]
+        if translated.get("question"):
+            step.en_question = translated["question"]
+        if translated.get("criteria"):
+            step.en_criteria = translated["criteria"]
+        step.en_hint = translated.get("hint")  # None 合法（原本就没提示）
+    db.commit()
+    return all(_step_is_translated(step) for step in steps)
+
+
+def _step_read(step: TutorialStep, lang: str, record_lang: str = "zh") -> StepRead:
+    """按请求语言出文案。
+
+    落库列存的是「生成原文」（record.lang 记它是哪种语言）：
+    - 请求语言 == 生成语言 → 直接用原文，一个字都不动；
+    - 请求 en、原文 zh → en_* 列翻好了就覆盖，没翻好原样中文（不假装）。
+    """
+    if normalize(lang) == "en" and record_lang == "zh" and _step_is_translated(step):
+        data = StepRead.model_validate(step).model_dump()
+        for en_field, zh_field in _EN_STEP_FIELDS:
+            value = getattr(step, en_field)
+            if value is not None:
+                data[zh_field] = value
+        return StepRead(**data)
+    return StepRead.model_validate(step)
+
+
 def _steps_response(
     video: Video,
     steps: list[TutorialStep],
@@ -579,7 +658,11 @@ def _steps_response(
     lang: str = "zh",
 ) -> StepsResponse:
     lang = normalize(lang)
+    record_lang = record.lang if record else "zh"
     note = record.note if record else ""
+    if lang == "en" and note:
+        # 诚实说明按同一份落库数据重建英文版，不是模型现翻的
+        note = breakdown_module.real_note_en(record)
     if analyzing:
         if steps:
             # 页面上还挂着上一次的结果。骨架的话直说它马上会被换掉；
@@ -594,6 +677,15 @@ def _steps_response(
     elif waiting and not steps:
         note = msg("note.waiting", lang)
 
+    # 翻译没跟上的两种情况都如实说，别让用户猜：
+    # - 英文请求、原文是中文、还没翻好 → 先看中文
+    # - 中文请求、但这版步骤是英文生成的 → 先看英文（重新分解一次并切回中文可拿到中文）
+    if steps:
+        if lang == "en" and record_lang == "zh" and any(not _step_is_translated(step) for step in steps) and not note:
+            note = msg("note.translation_unavailable", lang)
+        elif lang == "zh" and record_lang == "en":
+            note = (note + msg("note.steps_english_only", lang)).strip()
+
     return StepsResponse(
         video_id=video.id,
         title=video.title,
@@ -607,7 +699,7 @@ def _steps_response(
         basis=record.method if record else None,
         frame_count=sum(1 for step in steps if step.frame_key),
         note=note,
-        steps=[StepRead.model_validate(step) for step in steps],
+        steps=[_step_read(step, lang, record_lang) for step in steps],
     )
 
 
@@ -651,6 +743,9 @@ def get_video_steps(
     video = _load_video(video_id, db, lang)
     steps = _ordered_steps(video_id, db)
     record = _latest_breakdown(video_id, db)
+    if normalize(lang) == "en" and steps and (record is None or record.lang == "zh"):
+        # 英文请求 + 中文生成的步骤：现翻一次并落库；英文生成的直接用原文，不用翻
+        _ensure_english_steps(steps, db)
     return _steps_response(
         video,
         steps,
@@ -692,6 +787,8 @@ def regenerate_video_steps(
     video = _load_video(video_id, db, lang)
     steps = _ordered_steps(video_id, db)
     record = _latest_breakdown(video_id, db)
+    if normalize(lang) == "en" and steps and (record is None or record.lang == "zh"):
+        _ensure_english_steps(steps, db)
     return _steps_response(video, steps, record, analyzing=True, waiting=False, lang=lang)
 
 
@@ -745,7 +842,7 @@ def update_step(
 
     db.commit()
     db.refresh(step)
-    return step
+    return _step_read(step, lang)
 
 
 @app.post("/api/videos/{video_id}/steps/{step_id}/check", response_model=StepCheckResponse)

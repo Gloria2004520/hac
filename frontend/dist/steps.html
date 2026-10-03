@@ -133,7 +133,7 @@
             <strong id="progressText">第 1 步</strong>
             <span id="doneText">已完成 0 步</span>
             <button class="save" id="saveBtn" hidden>存下来</button>
-            <button class="regen" id="regenBtn">重新分解</button>
+            <button class="regen" id="regenBtn" data-i18n="steps.regen">重新分解</button>
           </div>
           <div class="track"><div class="bar" id="bar"></div></div>
         </div>
@@ -470,7 +470,7 @@
       if (step.last_verdict && step.last_reason) {
         const key = VERDICT_KEY[step.last_verdict] || VERDICT_KEY.unclear;
         last.className = "last-check " + (VERDICT_CLS[step.last_verdict] || "unclear");
-        last.textContent = t("steps.last_check_prefix") + t(key) + "：" + step.last_reason;
+        last.textContent = t("steps.last_check_prefix") + t(key) + t("steps.last_check_join") + step.last_reason;
         last.hidden = false;
       } else {
         last.hidden = true;
@@ -528,6 +528,7 @@
       try {
         const response = await fetch(I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/save"), { method: "POST" });
         const video = await readJson(response);
+        lastVideo = video;
         renderSave(video);
         notify(video.saved ? t("steps.toast_saved") : t("steps.toast_unsaved"));
       } catch (error) {
@@ -838,8 +839,13 @@
       document.title = t("steps.title");
       $("stepFrame").alt = t("steps.frame_alt");
       render();
+      // 「存下来 / 已存下」是按当时的语言画的，切语言后重画一遍
+      if (lastVideo) renderSave(lastVideo);
+      // 步骤文案是按语言现取的（英文来自后端翻译），切语言后重新拉一遍
+      loadSteps().catch(() => {});
     });
 
+    let lastVideo = null; // 留着切语言时重画「存下来 / 已存下」按钮
     (async function start() {
       if (!videoId || !/^[A-Za-z0-9-]{1,64}$/.test(videoId)) {
         showEmpty(t("steps.empty_invalid"));
@@ -848,6 +854,7 @@
       try {
         const response = await fetch(I18N.api("/api/videos/" + encodeURIComponent(videoId)), { cache: "no-store" });
         const video = await readJson(response);
+        lastVideo = video;
         renderVideo(video);
         renderSave(video);
       } catch (error) {

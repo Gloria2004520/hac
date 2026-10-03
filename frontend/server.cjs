@@ -207,7 +207,8 @@ const reply = (res, status, data) => {
 
 http.createServer(async (req, res) => {
   const lang = langOf(req);
-  if (req.method === "POST" && req.url === "/api/chat") {
+  const pathname = req.url.split("?")[0];
+  if (req.method === "POST" && pathname === "/api/chat") {
     if (!requestIsSameOrigin(req)) {
       return reply(res, 403, { error: chatText("cross_site", lang) });
     }
@@ -257,7 +258,7 @@ http.createServer(async (req, res) => {
     }
   }
 
-  if (req.method === "POST" && req.url === "/api/videos") {
+  if (req.method === "POST" && pathname === "/api/videos") {
     if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
     try {
       const raw = await readBody(req);
@@ -272,12 +273,12 @@ http.createServer(async (req, res) => {
     }
   }
 
-  const pathname = req.url.split("?")[0];
-
   // ---- 步骤：真分解（ffmpeg 切点 + 视觉模型看图） + 检查 ----
   const stepsListMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps$/);
   if (req.method === "GET" && stepsListMatch) {
-    return proxyJson(res, `/api/videos/${stepsListMatch[1]}/steps`);
+    // query（比如 ?lang=en）要原样带给后端，后端按语言出文案
+    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    return proxyJson(res, `/api/videos/${stepsListMatch[1]}/steps${query}`);
   }
 
   // 重新分解：会清掉已有步骤，所以 force 要原样带给后端，由后端决定要不要拦
@@ -307,11 +308,13 @@ http.createServer(async (req, res) => {
   if (req.method === "POST" && stepActionMatch) {
     if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
     const [, videoId, stepId, action] = stepActionMatch;
+    // check/ask 的回复语言跟着 ?lang=en 走，query 要带给后端
+    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
     try {
       // 用户可能带一张照片过来，上限给到 9MB 字符（后端还会再校验一次）
       const raw = await readBody(req, 9_000_000);
       JSON.parse(raw);
-      return await proxyJson(res, `/api/videos/${videoId}/steps/${stepId}/${action}`, {
+      return await proxyJson(res, `/api/videos/${videoId}/steps/${stepId}/${action}${query}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: raw,
@@ -325,10 +328,11 @@ http.createServer(async (req, res) => {
   const stepMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps\/([A-Za-z0-9-]{1,64})$/);
   if (req.method === "PATCH" && stepMatch) {
     if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
     try {
       const raw = await readBody(req);
       JSON.parse(raw);
-      return proxyJson(res, `/api/videos/${stepMatch[1]}/steps/${stepMatch[2]}`, {
+      return proxyJson(res, `/api/videos/${stepMatch[1]}/steps/${stepMatch[2]}${query}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: raw,

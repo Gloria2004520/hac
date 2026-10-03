@@ -265,6 +265,7 @@
     "steps.label_ask_self": { zh: "问自己", en: "Ask yourself" },
     "steps.label_criteria": { zh: "合格标准", en: "Pass criteria" },
     "steps.last_check_prefix": { zh: "小慢上次的判定 · ", en: "Slowly's last verdict · " },
+    "steps.last_check_join": { zh: "：", en: ": " },
     "steps.done_btn": { zh: "我做到了", en: "I did it" },
     "steps.done_undo": { zh: "撤销「我做到了」", en: "Undo \"I did it\"" },
     "steps.check_title": { zh: "让小慢看看，这一步过没过", en: "Tell Slowly how it's going" },

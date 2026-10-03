@@ -41,9 +41,17 @@ _SQLITE_COLUMNS: dict[str, dict[str, str]] = {
         "breakdown_id": "VARCHAR(36)",
         "text_basis": "VARCHAR(16) NOT NULL DEFAULT 'none'",
         "frame_key": "TEXT",
+        "en_title": "TEXT",
+        "en_summary": "TEXT",
+        "en_question": "TEXT",
+        "en_criteria": "TEXT",
+        "en_hint": "TEXT",
     },
     "videos": {
         "saved_at": "TIMESTAMP",
+    },
+    "tutorial_breakdowns": {
+        "lang": "VARCHAR(8) NOT NULL DEFAULT 'zh'",
     },
 }
 
