@@ -8,7 +8,9 @@ function youtubeQueryFromMessages(messages) {
   if (!text) return null;
 
   const looksLikeQuestion = /[?？]/.test(text);
-  const asksForTutorial = /(怎么|怎样|如何|什么|哪|能不能|可以吗|怎么办|为什么|是否|有没有|想学|教我|帮我|教程|步骤|准备)/i.test(text);
+  // 中文触发词保持原样；英文补一套等价的（否则英文提问永远不会带出检索结果）
+  const asksForTutorial = /(怎么|怎样|如何|什么|哪|能不能|可以吗|怎么办|为什么|是否|有没有|想学|教我|帮我|教程|步骤|准备)/i.test(text)
+    || /\b(how (to|do|does|did|can|could|should|about)|what (is|are|should|do|does|about)|why (is|do|does|are)|where (is|do|does|can)|when (is|do|does|should)|which|can (i|you|we)|could (i|you)|should (i|you|we)|teach me|help me|show me|guide me|tutorial|walk me through|steps? (to|for|of)|beginner)\b/i.test(text);
   if (!looksLikeQuestion && !asksForTutorial) return null;
   return text.slice(0, 50);
 }
