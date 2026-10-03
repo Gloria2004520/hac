@@ -133,6 +133,9 @@ Local demo: http://127.0.0.1:8766
 
 想改代码自动重载，给后端加 `--reload`。
 
+**这一段终端输出就是「日志」** —— 这个项目不写日志文件。想顺手存成文件方便事后排查，
+见 §6「出问题了先看哪里：日志」。
+
 **改过 `.env` 一定要重启对应服务。** 前端和后端都是启动时读一次配置，改完不重启不生效。
 
 ---
@@ -266,6 +269,44 @@ netsh advfirewall firewall add rule name="slowly-demo 8766" dir=in action=allow 
 ---
 
 ## 6. 常见问题
+
+### 出问题了先看哪里：日志
+
+**这个项目不写日志文件。** 后端只有 `logging.getLogger("cookclip.*")`、没配任何 handler，
+前端是 `console.log`。两者的日志都只走**终端标准输出**。所以「日志」就是
+你启动服务的那两个终端窗口 —— 别去找 `.log` 文件，项目里没有。
+
+出问题时按这个顺序看：
+
+| 来源 | 能看到什么 |
+| --- | --- |
+| 跑 uvicorn 的终端（终端 1） | 后端报错和**完整 traceback**。要用得最多的就是这个 |
+| 跑 `node server.cjs` 的终端（终端 2） | 前端代理层的失败，例如 `Binary proxy failed: ...` |
+| 浏览器 F12 → Console / Network | 页面 JS 报错；每个请求的真实状态码（200 / 404 / 500 / 504） |
+
+**想把日志留档**（演示当天很有用：手机端看不到终端，事后也能翻）：
+
+```bash
+# 终端 1 —— 后端
+cd backend
+../.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../backend.log 2>&1
+
+# 终端 2 —— 前端
+cd frontend
+node server.cjs > ../frontend.log 2>&1
+```
+
+之后 `type backend.log` 就能看（macOS/Linux 用 `tail -f backend.log`，能持续刷新）。
+
+**几条高频报错速查**：
+
+| 日志里看到 | 含义 |
+| --- | --- |
+| `QueuePool limit of size ... reached, connection timed out` | 数据库连接池被占满 → 之后**所有**接口一起超时。典型场景是**正在播视频时**去开素材库/列表就 504。已修（流式端点不再握着连接）；若再出现，说明又有地方在长时间占连接 |
+| 页面 `504` / 前端窗口 `backend_timeout` | 后端某个请求超过了前端代理的 **15 秒**上限。504 是**代理**给的，不是后端 |
+| 页面 `502` / 前端窗口 `backend_down` | 后端没起或已崩 —— 先去终端 1 看 |
+| `ffmpeg is not installed` | `FFMPEG_LOCATION` 没配、或 ffmpeg 不在 PATH（见 §1.3） |
+| `Server process ... exited` / 终端 1 整个报错退出 | 后端崩了。终端 1 最后那段 traceback 就是原因 |
 
 ### YouTube 下载或检索失败
 

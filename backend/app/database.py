@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import create_engine, event, text
@@ -18,6 +19,12 @@ if settings.database_url.startswith("sqlite:///"):
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
+    # 留出余量。池子太小（原来默认 5+10）在真实使用下很容易被打满：
+    # 播放一条本地视频会并发十几个 /content 分片请求，每个都可能在传文件期间
+    # 占着一个连接，池子一满后面所有请求都一起超时（素材库打不开就是这么来的）。
+    # 真正的修法是流式端点别握着连接（见 session_scope），这里只是加保险。
+    pool_size=10,
+    max_overflow=20,
     connect_args={"check_same_thread": False, "timeout": 30}
     if settings.database_url.startswith("sqlite")
     else {},
@@ -85,6 +92,24 @@ def create_tables() -> None:
 
 
 def get_db() -> Generator[Session, None, None]:
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@contextmanager
+def session_scope() -> Generator[Session, None, None]:
+    """短生命周期会话，用完立刻关。
+
+    专门给「读完数据就返回、不在会话里写库」的地方用 —— 尤其是返回 FileResponse
+    或流式响应的端点。这类端点**不能**用 `Depends(get_db)`：yield 式依赖要等响应
+    彻底发完才回收，而传一个大文件期间响应一直没结束，连接就被一直占着。
+    浏览器播一条视频会并发十几个分片请求，几个来回就把连接池打满，之后
+    任何请求（比如素材库）都跟着超时。这里的写法是读完要用的字段就 close，
+    把 FileResponse 放到会话外面返回。
+    """
     session = SessionLocal()
     try:
         yield session

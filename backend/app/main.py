@@ -20,7 +20,7 @@ from app import video_analysis
 from app.breakdown import build_steps, mock_note
 from app.coach import ask_step, check_step
 from app.config import settings
-from app.database import SessionLocal, create_tables, get_db
+from app.database import SessionLocal, create_tables, get_db, session_scope
 from app.i18n import msg, normalize
 from app.local_queue import executor, submit
 from app.library import CATEGORY_LABELS, classify_tutorials, display_tutorial_title, keyword_category
@@ -411,21 +411,27 @@ def get_playback(video_id: str, db: Session = Depends(get_db)):
 
 
 @app.get("/api/videos/{video_id}/content")
-def get_video_content(video_id: str, db: Session = Depends(get_db)):
-    video = db.get(Video, video_id)
-    if video is None:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    if video.status != "ready" or not video.object_key:
-        raise HTTPException(status_code=409, detail="视频尚未准备完成")
+def get_video_content(video_id: str):
+    # 故意不用 Depends(get_db)：FileResponse 传大文件期间响应一直没结束，
+    # 而 yield 式依赖要等响应发完才回收连接。播放时并发十几个分片请求，
+    # 会把连接池占满、拖垮其它接口（素材库打不开就是这个原因）。
+    # 这里读完要用的字段就立刻关会话。
+    with session_scope() as db:
+        video = db.get(Video, video_id)
+        if video is None:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        if video.status != "ready" or not video.object_key:
+            raise HTTPException(status_code=409, detail="视频尚未准备完成")
+        object_key, mime_type = video.object_key, video.mime_type
     try:
-        path = resolve_object(video.object_key)
+        path = resolve_object(object_key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not path.is_file():
         raise HTTPException(status_code=404, detail="视频文件不存在")
     return FileResponse(
         path,
-        media_type=video.mime_type,
+        media_type=mime_type,
         filename=path.name,
         content_disposition_type="inline",
     )
@@ -897,15 +903,18 @@ def get_step_frame(
     video_id: str,
     step_id: str,
     lang: str = Query(default="zh"),
-    db: Session = Depends(get_db),
 ):
     """这一步的代表画面。没有就如实 404，不要拿别的图糊弄。"""
-    _load_video(video_id, db, lang)
-    step = _load_step(video_id, step_id, db, lang)
-    if not step.frame_key:
+    # 同样是流式响应：步骤页会一次性拉很多张帧，读完后立刻关会话，
+    # 别把连接留到图片传完（原因见 get_video_content）。
+    with session_scope() as db:
+        _load_video(video_id, db, lang)
+        step = _load_step(video_id, step_id, db, lang)
+        frame_key = step.frame_key
+    if not frame_key:
         raise HTTPException(status_code=404, detail=msg("error.no_frame", lang))
     try:
-        path = resolve_object(step.frame_key)
+        path = resolve_object(frame_key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=msg("error.frame_path_bad", lang)) from exc
     if not path.is_file():
