@@ -9,7 +9,8 @@
 
   const inLibrary = location.pathname === '/library.html';
   const nav = document.createElement('nav');
-  nav.className = 'app-nav' + (root.classList.contains('app') ? ' compact' : '');
+  const compact = root.classList.contains('app') || root.classList.contains('compact-page');
+  nav.className = 'app-nav' + (compact ? ' compact' : '');
   nav.setAttribute('aria-label', '主要页面');
 
   const items = [
