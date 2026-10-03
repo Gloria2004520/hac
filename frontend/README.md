@@ -13,8 +13,8 @@ Node.js 18 or newer; no dependencies to install. All commands below run in this 
 (`frontend/`).
 
 1. At the repo root, copy `.env.example` to `.env` (shared by both ends).
-2. Fill in `OPENROUTER_API_KEY` (used by the default free model); never commit the key. To switch to
-   DeepSeek or another provider, see "Switching to DeepSeek" in the root README.
+2. Fill in `OPENROUTER_API_KEY` (used by the default free model); never commit the key. To point it
+   at another OpenAI-compatible provider, see "Using another model provider" in the root README.
 3. Start the FastAPI backend first, as described in the root README (defaults to
    `http://127.0.0.1:8000`).
 4. Run `node server.cjs`.
@@ -85,13 +85,13 @@ done.
     audio and gets no transcript; when a breakdown cannot be done it falls back to a generic
     skeleton (`mock=true` plus an honest note).
   - Checks and Q&A go through `backend/app/coach.py` with the same OpenAI-compatible config as the
-    chat. Attached photos are sent to the model by default (`deepseek-chat` was measured to describe
-    images correctly); for a model that cannot see images, set `MODEL_VISION_ENABLED=false`, or point
-    `MODEL_VISION_NAME` at a vision model. When the model cannot read a photo it falls back to
-    judging on text alone and says so.
+    chat. Attached photos are sent to the model by default (a current vision-capable model was
+    measured to describe images correctly); for a model that cannot see images, set
+    `MODEL_VISION_ENABLED=false`, or point `MODEL_VISION_NAME` at a vision model. When the model
+    cannot read a photo it falls back to judging on text alone and says so.
 - Text chat uses the model configured by `MODEL_API_BASE` / `MODEL_API_KEY` / `MODEL_NAME`; the
-  default is OpenRouter's free `inclusionai/ling-3.0-flash-sante:free`, switchable to the official
-  DeepSeek API.
+  default is OpenRouter's free `inclusionai/ling-3.0-flash-sante:free`, switchable to any
+  OpenAI-compatible provider.
 - Local video preview; videos are never uploaded to a server.
 
 ## Prototype limits
@@ -103,5 +103,6 @@ writes is "what is in this frame", not "what this segment is about"; the checkin
 watched the video either — it only has the pass criterion, your description and an optional photo.
 Please only save public videos you are allowed to download. Free models may be rate-limited.
 
-The service binds to localhost only; add user authentication, request limits and server-side secret
-management before deploying publicly.
+This is a local demo, not a production deployment — see "Scope: a local demo, not a production
+deployment" in the root README for the follow-up work. The service binds to localhost only; add user
+authentication, request limits and server-side secret management before deploying publicly.

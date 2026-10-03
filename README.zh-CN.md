@@ -2,42 +2,136 @@
 
 [English](README.md) | **中文**
 
-界面支持中英文切换，并会在主页、视频页、步骤页与素材库之间记住选择。
-
 教程陪做原型：把一个教程视频拆成「第 1 步…第 N 步」，每步配一张代表画面和一条合格标准；
 有人陪你做、替你看这一步过没过，做完还能存下来下次接着做。
 
-前端是 Node 服务（页面 + 对话 + 接口代理），后端是 FastAPI（YouTube 实时检索、视频落库、
-步骤分解）。两个服务都只监听本机地址。
+界面支持中英文切换，并会在主页、视频页、步骤页与素材库之间记住选择。
 
-## 目录结构
+## 定位：本地演示，不是生产部署
 
-```text
-.
-├── AGENTS.md              协作约定（提交规则、诚实边界）
-├── .env.example           前后端共用的配置模板
-├── requirements.txt       后端 Python 依赖
-├── frontend/              前端：Node 服务 + 静态页面（无需安装依赖）
-│   ├── server.cjs         页面路由、文字对话、检索与步骤/视频接口代理
-│   ├── chat-search.cjs    检索结果处理（配 chat-search.test.cjs）
-│   └── dist/
-│       ├── index.html     聊天首页：提问、YouTube 检索、「存着慢慢做」入口
-│       ├── library.html   素材库：已成功真实分解的教程、搜索与分类筛选
-│       ├── video.html     单条视频页：下载进度 + 播放（?start=&end= 可只播一段）
-│       └── steps.html     一步步做：步骤 + 代表画面 + 判定 + 问答
-└── backend/               后端：FastAPI 检索 + 视频落库 + 步骤分解
-    ├── app/
-    │   ├── main.py            全部接口（视频任务 / 检索 / 步骤 / 保存）
-    │   ├── video_analysis.py  ffprobe/ffmpeg 封装：读时长、找画面切点、抽帧
-    │   ├── breakdown.py       把视频拆成一步步（真拆；拆不出来退回通用骨架）
-    │   ├── coach.py           步骤判定、卡住时的问答
-    │   ├── search.py          YouTube 检索（yt-dlp 子进程，失败如实报错）
-    │   ├── models.py / schemas.py / database.py / storage.py
-    │   ├── tasks.py / local_queue.py
-    │   └── config.py / security.py
-    ├── data/              运行时生成：SQLite、下载的视频、代表画面（不入库）
-    └── tests/             单元测试
+这个仓库是**为了把想法演示出来**而做的 demo —— 是给人看的展示，不是可以直接丢到公网上跑的服务。
+所有东西都跑在一台本机上：后端绑 `127.0.0.1:8000`，前端绑 `127.0.0.1:8766`（只在局域网演示期间
+才设 `HOST=0.0.0.0`），数据存在本地 SQLite 文件 + 本地目录里，模型密钥放在本地 `.env` 里。
+
+企业级 / 生产级部署**还没做**，属于待办（TODO），后续会继续完成：
+
+- [ ] 用户账号、登录鉴权与用户间数据隔离
+- [ ] 请求限流与按 key 的配额
+- [ ] 服务端密钥管理（不再落盘、不放在前端进程里）
+- [ ] 反向代理 + HTTPS，以及真正的 ASGI 部署（多 worker、健康检查、自动重启）
+- [ ] 用正式数据库替换 SQLite，并引入数据迁移
+- [ ] 视频与代表画面改用对象存储，而不是本地目录
+- [ ] 可观测性：结构化日志、指标、错误上报
+- [ ] 打包：一个容器镜像 + 一条命令部署
+
+在这份清单完成之前，请把仓库里的每一部分都当作 demo 看待。
+
+## 系统架构
+
+两个进程，共用一份配置。浏览器只跟 `:8766` 上的 Node 服务说话；后端留在 `127.0.0.1:8000`，
+由前端代理转发过去。这样局域网里的手机最多只能碰到前端端口——后端、下载器和模型密钥都留在本机。
+
+```mermaid
+flowchart TB
+    Client["浏览器 / 手机<br/>http://127.0.0.1:8766"]
+    subgraph FE["前端 · Node (server.cjs)"]
+        Pages["dist/*.html<br/>页面 + PWA 外壳"]
+        Proxy["/api/chat 由它自己处理<br/>其余接口代理转发"]
+    end
+    subgraph BE["后端 · FastAPI (app/main.py)"]
+        API["REST 接口<br/>videos · steps · search"]
+        Jobs["后台任务<br/>下载 + 分解"]
+    end
+    YT["yt-dlp → YouTube"]
+    FF["ffmpeg / ffprobe"]
+    LLM["模型 API<br/>OpenAI 兼容"]
+    DB[("SQLite + 本地文件<br/>backend/data")]
+
+    Client --> FE
+    Pages --- Proxy
+    Proxy -->|"HTTP 127.0.0.1:8000"| API
+    API --> Jobs
+    Jobs --> YT
+    Jobs --> FF
+    API --> LLM
+    API --> DB
 ```
+
+步骤分解本身就是一条两段式链路。两段都是真跑，而且都拿得出证据（用了哪条 ffmpeg 命令、
+来自哪张截图）：
+
+```mermaid
+flowchart LR
+    V["下载好的视频"] --> C["1 · 找画面切点<br/>ffmpeg 场景检测"]
+    C --> P["pick_cuts<br/>两段隔 8s 以上 · 最多 10 段"]
+    P --> F["2 · 抽中间那一帧<br/>每段一张 JPEG"]
+    F --> M["视觉模型写<br/>标题 · 说明 · 合格标准"]
+    M --> S["落在 tutorial_steps 表<br/>+ frames 目录"]
+    P -.->|"画面几乎没变化"| E["按总时长平均分<br/>basis = even"]
+    M -.->|"模型没答上来"| K["通用骨架<br/>basis = mock · text_basis = none"]
+```
+
+## 环境要求
+
+| | 版本 | 说明 |
+| --- | --- | --- |
+| Python | 3.12+ | 只有后端需要 |
+| Node.js | 18+ | 前端**无需安装任何依赖** |
+| FFmpeg | 较新的版本即可 | **`ffmpeg` 和 `ffprobe` 两个都要装**——`ffprobe` 读时长，`ffmpeg` 合并音视频、抽帧 |
+| 模型密钥 | — | 默认免费模型用 OpenRouter 密钥，或任意 OpenAI 兼容提供方的密钥 |
+
+## 快速开始
+
+后端和前端分别在两个终端里跑，**先起后端**。
+
+### macOS / Linux
+
+```bash
+git clone https://github.com/suonnnnnnn/slowly-demo.git
+cd slowly-demo
+
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+brew install ffmpeg            # macOS。Linux 用你的包管理器（apt / dnf / pacman）
+cp .env.example .env           # 然后填入模型密钥（见「配置」）
+```
+
+```bash
+# 终端 1 —— 后端
+cd backend && ../.venv/bin/python -m uvicorn app.main:app --port 8000
+
+# 终端 2 —— 前端
+cd frontend && node server.cjs
+```
+
+### Windows
+
+```powershell
+git clone https://github.com/suonnnnnnn/slowly-demo.git
+cd slowly-demo
+
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env    # 然后填入模型密钥（见「配置」）
+```
+
+用你惯用的包管理器装好 FFmpeg，再把 `.env` 里的 `FFMPEG_LOCATION` 指到它的 `bin` 目录
+（例如 `C:/Users/you/ffmpeg/bin`）。不配会报 `ffmpeg is not installed`，分解只能退回通用骨架。
+
+```bash
+# 终端 1 —— 后端
+cd backend && ../.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
+
+# 终端 2 —— 前端
+cd frontend && node server.cjs
+```
+
+### 然后打开
+
+http://127.0.0.1:8766/ 就是聊天首页。想改代码自动重载，给后端命令加 `--reload`。
+
+两个服务都是启动时读一次 `.env`，所以**改完 `.env` 一定要重启对应服务**。
 
 ## 配置
 
@@ -56,19 +150,19 @@ cp .env.example .env    # 填入自己的模型密钥，勿提交密钥
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxx    # 默认免费模型必填；勿提交密钥
 ```
 
-### 切换到 DeepSeek
+### 换成其他模型提供方
 
-想改用 DeepSeek 官方 API（按你账号的用量计费），先到 https://platform.deepseek.com 创建一个 API Key，
-然后编辑 `.env`：
+对话和步骤判定都走**任意 OpenAI 兼容**的接口，所以你可以把这三个变量指向自己在用的服务商。
+编辑 `.env`：
 
 ```bash
-MODEL_API_BASE=https://api.deepseek.com/v1
-MODEL_API_KEY=sk-你的 DeepSeek 密钥
-MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
+MODEL_API_BASE=https://你的服务商/v1
+MODEL_API_KEY=你的密钥
+MODEL_NAME=你的模型名                # 步骤判定要用能看图的模型
 ```
 
-保存后重启前端（`cd frontend && node server.cjs`）生效。想切回 OpenRouter 免费模型，把
-`MODEL_API_BASE` 改成 `https://openrouter.ai/api/v1`、`MODEL_NAME` 改成
+保存后重启前端（`cd frontend && node server.cjs`）生效。想回到内置默认，把
+`MODEL_API_BASE` 改回 `https://openrouter.ai/api/v1`、`MODEL_NAME` 改成
 `inclusionai/ling-3.0-flash-sante:free`，并确保 `OPENROUTER_API_KEY` 已填写。
 
 三个变量的规则：`MODEL_API_KEY` 优先于 `OPENROUTER_API_KEY`；`MODEL_API_BASE` 和 `MODEL_NAME`
@@ -86,6 +180,7 @@ MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
 | `SEARCH_TIMEOUT_SECONDS` | `25` | 一次 YouTube 检索子进程的总预算（秒）。8 秒太紧——光 `import yt-dlp` 就要 1~2 秒 |
 | `SEARCH_SOCKET_TIMEOUT_SECONDS` | `10` | 单次 socket 操作超时。比总预算小，连不上时能早点失败、报出真实原因 |
 | `VIDEO_BACKEND_URL` | `http://127.0.0.1:8000` | 前端把检索和步骤请求转发到这里 |
+| `HOST` | `127.0.0.1` | 前端监听地址。设成 `0.0.0.0` 就把页面开到局域网（手机 / PWA），启动日志会打印局域网地址 |
 | `MAX_VIDEO_HEIGHT` | `720` | 下载清晰度上限。步骤卡片只用到 640px 宽的截图，1080p 的像素基本都被丢掉，但视频页要给人看，所以折中在 720p。现场想更强调速度可以调到 `480` |
 | `DOWNLOAD_CONCURRENCY` | `4` | yt-dlp 的分片并发数。YouTube 是整段 https 下载，收益不如 HLS 明显，但长视频上能看到可见提速；设 `1` 就是原来的单连接行为 |
 | `FAST_SCENE_DETECT` | `true` | 场景检测只解码 I 帧，实测快约 6.6 倍（146 秒的 1080p 从 9.5 秒降到 1.4 秒）。想拿到与全解码完全一致的切点就设 `false` |
@@ -161,35 +256,15 @@ MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
 后端另外还提供 `GET /api/health`、`GET /api/search`、`GET /api/videos/{id}/playback`、
 `DELETE /api/videos/{id}`，完整文档在 `http://127.0.0.1:8000/docs`。
 
-## 启动后端
-
-需要 Python 3.12 与 FFmpeg（macOS 可用 `brew install ffmpeg`）。
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd backend && uvicorn app.main:app --reload --port 8000   # http://localhost:8000
-```
-
-Windows 上 ffmpeg 不在 PATH 里时，把 `FFMPEG_LOCATION` 指到它的 `bin` 目录即可（yt-dlp 合并音视频
-和步骤分解都要用）。后端会在 `backend/data/` 下自动创建 SQLite 库、视频素材库与 `frames/` 代表画面目录，
-该目录不入库。FastAPI 不再提供独立的 CookClip 网页；`http://127.0.0.1:8000/docs` 保留为接口文档。
-
-## 启动前端
-
-需要 Node.js 18 或更新版本，无需安装依赖。
-
-```bash
-cd frontend && node server.cjs    # http://127.0.0.1:8766/
-```
+## 手机 / PWA
 
 前端同时也是一个 PWA：手机上「添加到主屏幕」/「安装应用」即可全屏打开、有自己的图标
 （见 `frontend/README.zh-CN.md`）。想在同一网络下的手机上打开，先把 `.env` 里的
 `HOST` 设成 `0.0.0.0`，启动日志会打印局域网地址。这个 demo 没有登录，
 建议用自己的手机热点而不是公共 WiFi，用完改回来。
 
-从环境搭建、启动、手机访问到演示收尾的完整清单（含 Windows 防火墙、macOS 本地网络权限这些坑），
-见 [`docs/demo-runbook.zh-CN.md`](docs/demo-runbook.zh-CN.md)。
+从环境搭建、启动、手机访问到演示收尾的完整清单（含 Windows 防火墙规则、macOS 本地网络权限，
+以及「WiFi 客户端隔离」这个最常见的坑），见 [`docs/demo-runbook.zh-CN.md`](docs/demo-runbook.zh-CN.md)。
 
 ## 原型限制
 
@@ -198,9 +273,41 @@ cd frontend && node server.cjs    # http://127.0.0.1:8766/
 
 步骤分解是**真的**（画面切点 + 视觉模型看代表帧），但它只看截图、没听声音、没有字幕转写，
 所以模型写的是「这一帧里有什么」而不是「这一段讲了什么」；画面里烧进去的字幕它看得见，视频的讲解内容它不知道。
-界面上每一步都标了这一段的边界和文字各是从哪来的。检索、下载和判定都会如实报告失败，不会把失败说成“没搜到”。
-免费模型可能受限流影响。
+判定模型同样没看过视频，只依据合格标准、你的描述和可选的照片。界面上每一步都标了这一段的边界和文字各是从哪来的。
+检索、下载和判定都会如实报告失败，不会把失败说成“没搜到”。免费模型可能受限流影响。
 
 两个服务都只监听本机地址；部署为公开服务前需添加用户认证、请求限额及服务端密钥管理。
 
-本地下载 YouTube 时，经用户明确授权后可在 `.env` 设置 `YT_DLP_COOKIE_BROWSER=chrome`，读取 Chrome 登录状态。macOS 可能请求钥匙串授权。仅对 YouTube 链接启用，默认关闭；`YT_DLP_COOKIE_FILE` 优先。不要提交浏览器凭证。
+本地下载 YouTube 时，经用户明确授权后可在 `.env` 设置 `YT_DLP_COOKIE_BROWSER=chrome`，读取 Chrome 登录状态。
+macOS 可能请求钥匙串授权。仅对 YouTube 链接启用，默认关闭；`YT_DLP_COOKIE_FILE` 优先。不要提交浏览器凭证。
+
+## 目录结构
+
+```text
+.
+├── AGENTS.md              协作约定（提交规则、诚实边界）
+├── .env.example           前后端共用的配置模板
+├── requirements.txt       后端 Python 依赖
+├── docs/
+│   └── demo-runbook.zh-CN.md   现场搭建 → 演示 → 收尾清单
+├── frontend/              前端：Node 服务 + 静态页面（无需安装依赖）
+│   ├── server.cjs         页面路由、文字对话、检索与步骤/视频接口代理
+│   ├── chat-search.cjs    检索结果处理（配 chat-search.test.cjs）
+│   └── dist/
+│       ├── index.html     聊天首页：提问、YouTube 检索、「存着慢慢做」入口
+│       ├── library.html   素材库：已成功真实分解的教程、搜索与分类筛选
+│       ├── video.html     单条视频页：下载进度 + 播放（?start=&end= 可只播一段）
+│       └── steps.html     一步步做：步骤 + 代表画面 + 判定 + 问答
+└── backend/               后端：FastAPI 检索 + 视频落库 + 步骤分解
+    ├── app/
+    │   ├── main.py            全部接口（视频任务 / 检索 / 步骤 / 保存）
+    │   ├── video_analysis.py  ffprobe/ffmpeg 封装：读时长、找画面切点、抽帧
+    │   ├── breakdown.py       把视频拆成一步步（真拆；拆不出来退回通用骨架）
+    │   ├── coach.py           步骤判定、卡住时的问答
+    │   ├── search.py          YouTube 检索（yt-dlp 子进程，失败如实报错）
+    │   ├── models.py / schemas.py / database.py / storage.py
+    │   ├── tasks.py / local_queue.py
+    │   └── config.py / security.py
+    ├── data/              运行时生成：SQLite、下载的视频、代表画面（不入库）
+    └── tests/             单元测试
+```
