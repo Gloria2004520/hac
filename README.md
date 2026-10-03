@@ -9,8 +9,8 @@ whether you actually got there, and lets you save it to come back to later.
 The frontend is a Node service (pages + chat + API proxy); the backend is FastAPI (live YouTube
 search, video storage, step breakdown). Both bind to localhost only.
 
-> The UI copy is in Chinese. This README is English-first; the Chinese version is
-> [`README.zh-CN.md`](README.zh-CN.md).
+> The UI supports Chinese and English and remembers the selected language across pages. This README
+> is English-first; the Chinese version is [`README.zh-CN.md`](README.zh-CN.md).
 
 ## Layout
 
@@ -97,7 +97,7 @@ All served as static files by the same Node service:
 
 | Page | What it does |
 | --- | --- |
-| `index.html` (`/`) | Chat home. You ask something, the assistant answers and searches YouTube live; tap a result for a preview modal, tap "教程分解" to create a download job. Once you have saved something, a "saved to do slowly" entry appears on the page too. A shared bottom navigation links Home and Material Library across all pages |
+| `index.html` (`/`) | Chat home. You ask something, the assistant answers and searches YouTube live; tap a result for a preview modal, tap "教程分解" to create a download job. The composer sits directly above the shared navigation. Once you have saved something, a "saved to do slowly" entry appears on the page too |
 | `library.html` | Material library. Uses the same 440 px app shell as Home and shows tutorials whose latest real breakdown completed successfully, with search and filters for cooking, everyday tools and other tutorials. The default free model classifies from the title and screenshot-derived step titles; keyword rules are the fallback. Neither implies whole-video understanding |
 | `video.html?id=` | One video. Plays the original YouTube video while downloading, then switches to the local MP4. With `?start=&end=` it plays just that segment (this is where "watch only this part" on the steps page goes) |
 | `steps.html?id=` | Step by step. Step strip + representative frame + "I did it" checkbox + "let the model check this step" + "ask when stuck"; you can save it, or re-break it down in one tap |

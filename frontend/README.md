@@ -29,7 +29,7 @@ unchanged. (`/api/search` is served by the backend only; the browser does not ca
 
 | Page | What it does |
 | --- | --- |
-| `dist/index.html` (`/`) | Chat home: ask, tap a suggested question to send it, preview YouTube results in a modal. Once you have saved something, a "saved to do slowly" entry appears (also reachable from the ⋯ menu) |
+| `dist/index.html` (`/`) | Chat home: ask, tap a suggested question to send it, preview YouTube results in a modal. The composer sits directly above the shared navigation. Once you have saved something, a "saved to do slowly" entry appears (also reachable from the ⋯ menu) |
 | `dist/library.html` | Material library: successful real breakdowns in a hand-drawn grid, searchable and filterable by cooking, everyday tools or other tutorials, using the same 440 px app shell as Home |
 | `dist/video.html?id=` | One video: plays the original YouTube video while downloading, then switches to the local MP4; `?start=&end=` plays only that segment |
 | `dist/steps.html?id=` | Step by step: step strip, representative frame, checks, Q&A, save, re-break-down |
@@ -37,6 +37,7 @@ unchanged. (`/api/search` is served by the backend only; the browser does not ca
 ## What works today
 
 - Chat home; tapping a suggested question sends it.
+- Chinese/English mode persists across Home, video, steps, the material library and the shared navigation.
 - A shared two-tab bottom navigation keeps Home and Material Library one tap away on every page. The library only lists tutorials whose latest real
   breakdown succeeded; failed generic skeletons are not presented as completed material. The default
   free model classifies from the title and screenshot-derived step titles, with title keywords as the

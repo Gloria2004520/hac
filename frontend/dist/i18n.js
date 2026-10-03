@@ -29,6 +29,11 @@
     "common.no_title": { zh: "（没有标题）", en: "(untitled)" },
     "common.local_video": { zh: "本地视频", en: "Local video" },
 
+    // ---------- 共享底部导航 ----------
+    "nav.aria": { zh: "主要页面", en: "Main pages" },
+    "nav.home": { zh: "主页", en: "Home" },
+    "nav.library": { zh: "素材库", en: "Library" },
+
     // ---------- 首页（index.html）----------
     "home.title": { zh: "慢慢来 · 你的生活陪做搭子", en: "Slowly · Your buddy for everyday how-tos" },
     "home.aria.menu": { zh: "更多选项", en: "More options" },
@@ -69,7 +74,6 @@
     "home.upload": { zh: "上传视频", en: "Upload video" },
     "home.paste_link": { zh: "粘贴链接", en: "Paste a link" },
     "home.send_aria": { zh: "发送消息", en: "Send message" },
-    "home.bottom_note": { zh: "AI 陪做 · YouTube 实时检索", en: "AI companion · live YouTube search" },
     "home.desktop_html": {
       zh: "慢慢来 / MOBILE DEMO<br>手机 App · 小程序交互预览",
       en: "Slowly / MOBILE DEMO<br>Mobile app · mini-program preview",
@@ -219,6 +223,41 @@
       zh: "请等当前回答完成后再开始新对话",
       en: "Wait for the current reply to finish before starting a new chat",
     },
+
+    // ---------- 素材库（library.html）----------
+    "library.title": { zh: "素材库 · 慢慢来", en: "Library · Slowly" },
+    "library.back": { zh: "← 回到聊天", en: "← Back to chat" },
+    "library.eyebrow": { zh: "教程素材库", en: "TUTORIAL LIBRARY" },
+    "library.heading": { zh: "我的素材库", en: "My library" },
+    "library.intro": {
+      zh: "已经按真实画面拆好的教程会留在这里。AI 只按标题和代表截图写出的步骤分类，没有听音频或看完整视频。",
+      en: "Tutorials broken down from real frames stay here. AI classifies them only from the title and screenshot-derived steps; it does not hear the audio or watch the whole video.",
+    },
+    "library.search_ph": { zh: "搜教程名…", en: "Search tutorials…" },
+    "library.search_aria": { zh: "搜索素材", en: "Search the library" },
+    "library.filters_aria": { zh: "素材分类", en: "Library categories" },
+    "library.category.all": { zh: "全部", en: "All" },
+    "library.category.all_long": { zh: "全部素材", en: "All tutorials" },
+    "library.category.cooking": { zh: "做饭教程", en: "Cooking" },
+    "library.category.tools": { zh: "日常工具", en: "Everyday tools" },
+    "library.category.other": { zh: "其他教程", en: "Other" },
+    "library.count": { zh: "{n} 份", en: "{n} items" },
+    "library.loading": { zh: "正在整理素材…", en: "Organizing your library…" },
+    "library.empty_title": { zh: "还没有拆好的素材", en: "No finished tutorials yet" },
+    "library.empty_text": {
+      zh: "从聊天页找一条教程，完成下载和真实画面分解后，它就会出现在这里。",
+      en: "Find a tutorial from Home. Once its download and real-frame breakdown finish, it will appear here.",
+    },
+    "library.empty_filtered_title": { zh: "没有符合条件的素材", en: "No matching tutorials" },
+    "library.empty_filtered_text": { zh: "换个关键词或分类看看。", en: "Try another keyword or category." },
+    "library.empty_action": { zh: "去找一个教程 →", en: "Find a tutorial →" },
+    "library.basis_model": { zh: "AI 按截图步骤分类", en: "AI classified from screenshot steps" },
+    "library.basis_keyword": { zh: "标题关键词分类", en: "Classified from title keywords" },
+    "library.progress_done": { zh: "全部 {n} 步都完成了 ✓", en: "All {n} steps done ✓" },
+    "library.progress_mid": { zh: "做到 {done} / {total} 步", en: "{done} / {total} steps done" },
+    "library.progress_start": { zh: "共 {n} 步 · 开始学习", en: "{n} steps · Start" },
+    "library.error_title": { zh: "素材库暂时打不开", en: "The library isn't available right now" },
+    "library.error_fallback": { zh: "暂时读不到素材库", en: "Couldn't load the library" },
 
     // ---------- 步骤页（steps.html）----------
     "steps.title": { zh: "一步步做 · 慢慢来", en: "Step by step · Slowly" },
@@ -378,6 +417,7 @@
   // 后端/代理偶尔会透传一段固定的中文（落库的报错等）。英文模式下按特征翻，
   // 对不上的原样显示——宁可显示中文，也不编一句假的。
   var SERVER_MAP = [
+    [/暂时无法连接视频下载服务/, "Can't reach the video service right now"],
     [/暂时无法连接 YouTube 检索服务/, "Can't reach the YouTube search service right now"],
     [/认为当前网络像机器人/, "YouTube thinks this network looks like a bot and wants a sign-in check. Two options: export cookies from a browser signed into YouTube (Netscape format) and set YT_DLP_COOKIE_FILE in .env, then restart the backend; or try a different network (e.g. your phone's hotspot)."],
     [/年龄限制/, "This video is age-restricted and needs cookies from a YouTube-signed-in account to download (set YT_DLP_COOKIE_FILE in .env)."],

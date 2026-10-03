@@ -12,10 +12,11 @@
   const compact = root.classList.contains('app') || root.classList.contains('compact-page');
   nav.className = 'app-nav' + (compact ? ' compact' : '');
   nav.setAttribute('aria-label', '主要页面');
+  nav.setAttribute('data-i18n-aria', 'nav.aria');
 
   const items = [
-    { href: '/', icon: '⌂', label: '主页', current: !inLibrary },
-    { href: '/library.html', icon: '▦', label: '素材库', current: inLibrary },
+    { href: '/', icon: '⌂', label: '主页', key: 'nav.home', current: !inLibrary },
+    { href: '/library.html', icon: '▦', label: '素材库', key: 'nav.library', current: inLibrary },
   ];
 
   items.forEach((item) => {
@@ -30,10 +31,15 @@
 
     const label = document.createElement('span');
     label.textContent = item.label;
+    label.setAttribute('data-i18n', item.key);
     link.append(icon, label);
     nav.append(link);
   });
 
   document.body.classList.add('has-app-nav');
   document.body.append(nav);
+  if (window.I18N) {
+    nav.setAttribute('aria-label', window.I18N.t('nav.aria'));
+    window.I18N.apply(nav);
+  }
 })();
