@@ -1,6 +1,6 @@
 # Project workflow
 
-- The user requests that every completed update to this project also be committed and pushed to `https://github.com/suonnnnnnn/slowly-demo.git` on `main`.
+- The user requests that every completed update to this project also be committed and pushed to `https://github.com/Gloria2004520/hac.git` on `main`.
 - Fetch before pushing, preserve remote changes, and never force-push. If synchronization is blocked, report the blocker.
 - Never commit API keys, `.env` secrets, `.git-broken-backup`, or local hosting credentials. Stage specific files.
 - Write commit messages in English (`feat:` / `fix:` / `docs:` + a short English body). Chinese belongs in
