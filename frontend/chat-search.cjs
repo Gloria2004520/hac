@@ -8,9 +8,13 @@ function youtubeQueryFromMessages(messages) {
   if (!text) return null;
 
   const looksLikeQuestion = /[?？]/.test(text);
-  // 中文触发词保持原样；英文补一套等价的（否则英文提问永远不会带出检索结果）
-  const asksForTutorial = /(怎么|怎样|如何|什么|哪|能不能|可以吗|怎么办|为什么|是否|有没有|想学|教我|帮我|教程|步骤|准备)/i.test(text)
-    || /\b(how (to|do|does|did|can|could|should|about)|what (is|are|should|do|does|about)|why (is|do|does|are)|where (is|do|does|can)|when (is|do|does|should)|which|can (i|you|we)|could (i|you)|should (i|you|we)|teach me|help me|show me|guide me|tutorial|walk me through|steps? (to|for|of)|beginner)\b/i.test(text);
+  // 触发词分两类：
+  // 1) 提问口气：怎么/如何/为什么…、how/what/why…
+  // 2) 明确"想做某件事"的口气：我要做 / 我想做 / 番茄炒蛋的做法 / recipe…
+  //    这一类既没有问号也不含疑问词，以前整类都漏掉了 ——
+  //    「我要做番茄炒蛋」「番茄炒蛋的做法」都搜不出来，看着就像"不检索了"。
+  const asksForTutorial = /(怎么|怎样|如何|什么|哪|能不能|可以吗|怎么办|为什么|是否|有没有|想学|教我|帮我|教程|步骤|准备|我要做|我要学|我想做|我想学|想做|要做|要学|做法|食谱|菜谱|配方)/i.test(text)
+    || /\b(how (to|do|does|did|can|could|should|about)|what (is|are|should|do|does|about)|why (is|do|does|are)|where (is|do|does|can)|when (is|do|does|should)|which|can (i|you|we)|could (i|you)|should (i|you|we)|teach me|help me|show me|guide me|tutorial|walk me through|steps? (to|for|of)|beginner|recipe|i (want|need|would like|am going) to (make|cook|bake|build|fix|learn|try))\b/i.test(text);
   if (!looksLikeQuestion && !asksForTutorial) return null;
   return text.slice(0, 50);
 }

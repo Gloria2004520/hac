@@ -19,6 +19,23 @@ test("recognizes tutorial requests without a question mark", () => {
   );
 });
 
+test("recognizes an intent to make something, with no question word at all", () => {
+  // 这类以前整类漏掉：既没有问号，也不含「怎么/如何」，
+  // 但明显是在找教程，不该掉进「只聊天、不检索」。
+  assert.equal(
+    youtubeQueryFromMessages([{ role: "user", content: "我要做番茄炒蛋" }]),
+    "我要做番茄炒蛋",
+  );
+  assert.equal(
+    youtubeQueryFromMessages([{ role: "user", content: "番茄炒蛋的做法" }]),
+    "番茄炒蛋的做法",
+  );
+  assert.equal(
+    youtubeQueryFromMessages([{ role: "user", content: "red braised pork recipe" }]),
+    "red braised pork recipe",
+  );
+});
+
 test("does not search links or simple answers", () => {
   assert.equal(youtubeQueryFromMessages([{ role: "user", content: "绿萝" }]), null);
   assert.equal(youtubeQueryFromMessages([{ role: "user", content: "https://example.com/video" }]), null);
