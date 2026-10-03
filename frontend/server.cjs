@@ -382,7 +382,7 @@ http.createServer(async (req, res) => {
     "/library.html": "library.html",
   };
   const libraryAssets = {
-    "/assets/library/cooking.png": "cooking.png",
+    "/assets/library/potato-egg.png": "potato-egg.png",
     "/assets/library/spicy-chicken.png": "spicy-chicken.png",
     "/assets/library/washing-machine.png": "washing-machine.png",
     "/assets/library/tools.png": "tools.png",

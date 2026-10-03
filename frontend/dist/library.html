@@ -32,7 +32,7 @@
   <script>
     const state={items:[],category:'all',query:''};
     const labelKeys={all:'library.category.all_long',cooking:'library.category.cooking',tools:'library.category.tools',other:'library.category.other'};
-    const icons={cooking:'/assets/library/cooking.png',tools:'/assets/library/tools.png',other:'/assets/library/other.png'};
+    const icons={cooking:'/assets/library/potato-egg.png',tools:'/assets/library/tools.png',other:'/assets/library/other.png'};
     const $=id=>document.getElementById(id);
     function iconFor(item){if(/辣子鸡/.test(item.title))return '/assets/library/spicy-chicken.png';if(/洗衣机/.test(item.title))return '/assets/library/washing-machine.png';return icons[item.icon]||icons.other}
     function formatDuration(seconds){if(!seconds&&seconds!==0)return '';const total=Math.max(0,Math.round(seconds));return Math.floor(total/60)+':'+String(total%60).padStart(2,'0')}
