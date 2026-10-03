@@ -247,9 +247,29 @@ def download_video(video_id: str) -> None:
                 "writesubtitles": False,
                 "writeautomaticsub": False,
             }
-            try:
+            def _extract() -> dict:
                 with yt_dlp.YoutubeDL(download_options) as downloader:
-                    info = downloader.extract_info(video.source_url, download=True)
+                    return downloader.extract_info(video.source_url, download=True)
+
+            try:
+                try:
+                    info = _extract()
+                except Exception as exc:
+                    # match_filter 拦下来的（直播 / 超长）不是网络问题，重试没有意义
+                    if rejected["reason"]:
+                        raise
+                    message = str(exc).lower()
+                    transient = (
+                        "sign in to confirm" in message
+                        or "the page needs to be reloaded" in message
+                        or "http error 403" in message
+                    )
+                    if not transient:
+                        raise
+                    # 机房 IP 会**间歇性**撞上 YouTube 风控（实测同一容器几分钟后重试就过）。
+                    # 演示场景下直接红字报错观感极差，这里等几秒静默重试一次，用户无感知。
+                    time.sleep(8)
+                    info = _extract()
             except Exception as exc:
                 # match_filter 拦下来的（直播 / 超长）要报我们自己的话，不是 yt-dlp 的英文
                 if rejected["reason"]:
