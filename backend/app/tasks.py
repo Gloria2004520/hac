@@ -31,9 +31,21 @@ def _friendly_error(message: str) -> str:
     if "sign in to confirm" in lowered and "bot" in lowered:
         return (
             "YouTube 认为当前网络像机器人，要求登录验证。两条路："
-            "① 用你登录过 YouTube 的浏览器导出一份 cookie（Netscape 格式），在 .env 里填 "
-            "YT_DLP_COOKIE_FILE=cookie 文件路径，重启后端；"
+            "① 把环境变量 YT_DLP_PLAYER_CLIENT 设为 android 再试（数据中心 IP 上实测有效）；"
             "② 或者换一个网络出口（比如手机热点）再试一次。"
+        )
+    if "http error 403" in lowered or "403: forbidden" in lowered:
+        return (
+            "YouTube 拒绝了这次视频下载（403），最常见于云服务器/机房 IP——"
+            "本机能下、部署到云端不能下，多半就是它。两条路："
+            "① 把环境变量 YT_DLP_PLAYER_CLIENT 设为 android（数据中心 IP 上实测唯一能"
+            "同时拿到元数据和媒体流的客户端，且不要配 cookie）；"
+            "② 视频改在本机下载，云端只播放已经下好的素材。"
+        )
+    if "the page needs to be reloaded" in lowered:
+        return (
+            "YouTube 拒绝了这次提取（页面需要刷新）。这通常是客户端被风控拦下——"
+            "把环境变量 YT_DLP_PLAYER_CLIENT 设为 android（并确保不配 cookie）再试。"
         )
     if "sign in to confirm your age" in lowered or ("age" in lowered and "restrict" in lowered):
         return "这个视频有年龄限制，需要用登录过 YouTube 的账号 cookie 才能下载（.env 里配 YT_DLP_COOKIE_FILE）。"
@@ -142,12 +154,19 @@ def download_video(video_id: str) -> None:
             "retries": 10,
             "fragment_retries": 15,
         }
-        if settings.yt_dlp_cookie_file:
-            common_options["cookiefile"] = settings.yt_dlp_cookie_file
-        elif settings.yt_dlp_cookie_browser == "chrome":
-            host = (urlparse(video.source_url).hostname or "").lower()
-            if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
-                common_options["cookiesfrombrowser"] = ("chrome",)
+        if settings.yt_dlp_player_client:
+            # 数据中心 IP 场景：强制 android 系客户端，并且**不要带 cookie**——
+            # 实测带 cookie 反而拿不到可下载格式（见 config.py 里 yt_dlp_player_client 注释）。
+            common_options["extractor_args"] = {
+                "youtube": {"player_client": [settings.yt_dlp_player_client]}
+            }
+        else:
+            if settings.yt_dlp_cookie_file:
+                common_options["cookiefile"] = settings.yt_dlp_cookie_file
+            elif settings.yt_dlp_cookie_browser == "chrome":
+                host = (urlparse(video.source_url).hostname or "").lower()
+                if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
+                    common_options["cookiesfrombrowser"] = ("chrome",)
         ffmpeg_path = _ffmpeg_location()
         if ffmpeg_path:
             common_options["ffmpeg_location"] = ffmpeg_path
