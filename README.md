@@ -88,6 +88,10 @@ Everything else can stay empty. These few actually change what happens:
 | `SEARCH_TIMEOUT_SECONDS` | `25` | total budget for one YouTube search subprocess (seconds). 8s is too tight — just `import yt-dlp` costs 1–2s |
 | `SEARCH_SOCKET_TIMEOUT_SECONDS` | `10` | per-socket timeout. Smaller than the total budget so an unreachable network fails early with a real reason |
 | `VIDEO_BACKEND_URL` | `http://127.0.0.1:8000` | where the frontend forwards search and step requests |
+| `MAX_VIDEO_HEIGHT` | `720` | cap on download resolution. Step cards only use 640px-wide frames, so 1080p pixels are mostly thrown away, but the video page is watched by humans — 720p is the middle ground. Drop to `480` for a faster on-site demo |
+| `DOWNLOAD_CONCURRENCY` | `4` | yt-dlp fragment concurrency. YouTube serves one https range, so the win is smaller than on HLS, but it is visible on long videos; `1` restores the single-connection behaviour |
+| `FAST_SCENE_DETECT` | `true` | scene detection decodes I-frames only — measured ~6.6x faster (a 146s 1080p went from 9.5s to 1.4s). Set `false` for cuts identical to a full decode |
+| `CAPTION_CONCURRENCY` | `6` | how many segments are captioned in parallel. Serial would take forever; too high risks rate limiting (a timed-out segment falls back to just its screenshot) |
 
 See `.env.example` for the full list with comments.
 

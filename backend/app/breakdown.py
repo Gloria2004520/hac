@@ -43,8 +43,9 @@ NO_TEXT = "none"
 MAX_SEGMENTS = video_analysis.MAX_SEGMENTS
 # 切不出真实边界时的兜底段数
 EVEN_FALLBACK_SEGMENTS = 6
-# 同时问几段。免费模型单次不快，串行会等到天荒地老
-CAPTION_CONCURRENCY = 3
+# 同时问几段。免费模型单次不快，串行会等到天荒地老；但调太高容易被限流。
+# 默认值在 config（CAPTION_CONCURRENCY），现场可以按模型的限流情况调。
+CAPTION_CONCURRENCY = settings.caption_concurrency
 
 
 # ---------------------------------------------------------------- mock（没素材）
@@ -499,13 +500,17 @@ def analyze(
         cuts=cuts,
     )
 
-    for index in range(len(boundaries) - 1):
-        start, end = boundaries[index], boundaries[index + 1]
-        at = video_analysis.frame_sample_time(start, end)
-        frame = video_analysis.extract_frame(video_path, at)
+    # 代表帧一次性全抽出来（一个 ffmpeg 进程），别再一段一个进程
+    windows = [
+        (boundaries[index], boundaries[index + 1]) for index in range(len(boundaries) - 1)
+    ]
+    sample_times = [video_analysis.frame_sample_time(start, end) for start, end in windows]
+    frames = video_analysis.extract_frames(video_path, sample_times)
+
+    for index, ((start, end), frame) in enumerate(zip(windows, frames)):
         breakdown.segments.append(_blank_segment(index, start, end, frame, lang))
         if on_step:
-            on_step(index + 1, len(boundaries) - 1)
+            on_step(index + 1, len(windows))
 
     if settings.model_key and settings.model_vision_enabled:
         total = len(breakdown.segments)

@@ -86,6 +86,10 @@ MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
 | `SEARCH_TIMEOUT_SECONDS` | `25` | 一次 YouTube 检索子进程的总预算（秒）。8 秒太紧——光 `import yt-dlp` 就要 1~2 秒 |
 | `SEARCH_SOCKET_TIMEOUT_SECONDS` | `10` | 单次 socket 操作超时。比总预算小，连不上时能早点失败、报出真实原因 |
 | `VIDEO_BACKEND_URL` | `http://127.0.0.1:8000` | 前端把检索和步骤请求转发到这里 |
+| `MAX_VIDEO_HEIGHT` | `720` | 下载清晰度上限。步骤卡片只用到 640px 宽的截图，1080p 的像素基本都被丢掉，但视频页要给人看，所以折中在 720p。现场想更强调速度可以调到 `480` |
+| `DOWNLOAD_CONCURRENCY` | `4` | yt-dlp 的分片并发数。YouTube 是整段 https 下载，收益不如 HLS 明显，但长视频上能看到可见提速；设 `1` 就是原来的单连接行为 |
+| `FAST_SCENE_DETECT` | `true` | 场景检测只解码 I 帧，实测快约 6.6 倍（146 秒的 1080p 从 9.5 秒降到 1.4 秒）。想拿到与全解码完全一致的切点就设 `false` |
+| `CAPTION_CONCURRENCY` | `6` | 逐段问模型时的并发数。串行会等到天荒地老，调太高容易被限流（超时的那段会退回「只有截图」） |
 
 完整清单和注释见 `.env.example`。
 

@@ -90,6 +90,37 @@ def _ffmpeg_location() -> str | None:
     return shutil.which("ffmpeg")
 
 
+def _reject_reason(info: dict) -> str | None:
+    """下载前要拦掉的情况（直播 / 超长）。
+
+    放在 match_filter 里判，这样**只需要一次网络提取**。原来是先单独提一次元信息、
+    再提一次下载，而每次提取都要完整跑一遍播放器解析（实测约 4.3 秒），等于白等一倍。
+    """
+    if info.get("is_live"):
+        return "暂不支持直播链接"
+    duration = info.get("duration")
+    if duration and duration > settings.max_video_duration_seconds:
+        return f"视频超过允许的最长时长：{settings.max_video_duration_seconds} 秒"
+    return None
+
+
+def _format_selector() -> str:
+    """优先 H.264 + AAC（合并成 mp4 不用重编码），清晰度不超过 MAX_VIDEO_HEIGHT。
+
+    步骤卡片只用到 640px 宽的截图，1080p 多出来的像素基本都被丢掉，而视频文件却要
+    完整下回来——降一档清晰度是下载耗时和数据量上最直接的一笔优化。
+    """
+    height = settings.max_video_height
+    return (
+        f"bv*[vcodec^=avc1][protocol=https][height<={height}]"
+        "+ba[acodec^=mp4a][protocol=https]"
+        "/b[ext=mp4][protocol=https]"
+        f"/bv*[ext=mp4][protocol=https][height<={height}]"
+        "+ba[ext=m4a][protocol=https]"
+        "/bv*+ba/b"
+    )
+
+
 def download_video(video_id: str) -> None:
     session = SessionLocal()
     video = session.get(Video, video_id)
@@ -121,32 +152,50 @@ def download_video(video_id: str) -> None:
         if ffmpeg_path:
             common_options["ffmpeg_location"] = ffmpeg_path
 
-        with yt_dlp.YoutubeDL({**common_options, "skip_download": True}) as downloader:
-            info = downloader.extract_info(video.source_url, download=False)
+        rejected: dict[str, str | None] = {"reason": None}
+        metadata_written = False
 
-        if info.get("is_live"):
-            raise ValueError("暂不支持直播链接")
-        duration = info.get("duration")
-        if duration and duration > settings.max_video_duration_seconds:
-            raise ValueError(f"视频超过允许的最长时长：{settings.max_video_duration_seconds} 秒")
+        def _write_metadata(info_dict: dict) -> None:
+            """把标题 / 时长先落库，页面在下载过程中就能显示，不用等下载完。"""
+            nonlocal metadata_written
+            if metadata_written:
+                return
+            metadata_written = True
+            _update(
+                session,
+                video,
+                title=info_dict.get("title"),
+                uploader=info_dict.get("uploader"),
+                thumbnail_url=info_dict.get("thumbnail"),
+                duration_seconds=info_dict.get("duration"),
+                source_video_id=info_dict.get("id"),
+                source_platform=(
+                    info_dict.get("extractor_key") or info_dict.get("extractor") or ""
+                ).lower()
+                or None,
+            )
 
-        _update(
-            session,
-            video,
-            status="downloading",
-            title=info.get("title"),
-            uploader=info.get("uploader"),
-            thumbnail_url=info.get("thumbnail"),
-            duration_seconds=duration,
-            source_video_id=info.get("id"),
-            source_platform=(info.get("extractor_key") or info.get("extractor") or "").lower() or None,
-        )
+        def match_filter(info_dict, *, incomplete=False):
+            """yt-dlp 在**下载之前**调用它：返回一句话就表示这条不要，直接中断。
+
+            这样「直播 / 超长」的检查就和下载共用同一次提取，不再多跑一遍播放器解析。
+            """
+            if incomplete:
+                return None
+            reason = _reject_reason(info_dict)
+            if reason:
+                rejected["reason"] = reason
+            return reason
 
         with tempfile.TemporaryDirectory(prefix=f"{video_id}-", dir=settings.temp_root) as temp_dir:
             job_dir = Path(temp_dir)
 
             def progress_hook(data: dict) -> None:
                 nonlocal last_progress_write
+                info_dict = data.get("info_dict")
+                if isinstance(info_dict, dict):
+                    # 一有进度就把标题/时长写进去，页面不用等下载完才有标题
+                    _write_metadata(info_dict)
                 if data.get("status") == "finished":
                     _update(session, video, status="downloading", progress=98)
                     return
@@ -168,25 +217,31 @@ def download_video(video_id: str) -> None:
             download_options = {
                 **common_options,
                 "outtmpl": str(job_dir / "source.%(ext)s"),
-                "format": (
-                    "bv*[vcodec^=avc1][protocol=https][height<=1080]"
-                    "+ba[acodec^=mp4a][protocol=https]"
-                    "/b[ext=mp4][protocol=https]"
-                    "/bv*[ext=mp4][protocol=https][height<=1080]"
-                    "+ba[ext=m4a][protocol=https]"
-                    "/bv*+ba/b"
-                ),
+                "format": _format_selector(),
                 "merge_output_format": "mp4",
                 "max_filesize": settings.max_file_size_bytes,
-                "concurrent_fragment_downloads": 1,
+                "concurrent_fragment_downloads": settings.download_concurrency,
+                "match_filter": match_filter,
                 "progress_hooks": [progress_hook],
                 "postprocessor_hooks": [postprocessor_hook],
                 "writethumbnail": False,
                 "writesubtitles": False,
                 "writeautomaticsub": False,
             }
-            with yt_dlp.YoutubeDL(download_options) as downloader:
-                downloader.extract_info(video.source_url, download=True)
+            try:
+                with yt_dlp.YoutubeDL(download_options) as downloader:
+                    info = downloader.extract_info(video.source_url, download=True)
+            except Exception as exc:
+                # match_filter 拦下来的（直播 / 超长）要报我们自己的话，不是 yt-dlp 的英文
+                if rejected["reason"]:
+                    raise ValueError(rejected["reason"]) from exc
+                raise
+            # match_filter 拦下来时 yt-dlp **不抛异常**，只是静默跳过、什么都不下。
+            # 不在这里兜住的话，下面会走到「找不到视频文件」，把用户引偏。
+            if rejected["reason"]:
+                raise ValueError(rejected["reason"])
+            if isinstance(info, dict):
+                _write_metadata(info)
 
             local_file = _find_downloaded_file(job_dir)
             file_size = local_file.stat().st_size
