@@ -14,7 +14,10 @@ class Settings(BaseSettings):
     app_name: str = "CookClip"
     database_url: str = "sqlite:///./data/cookclip.db"
     local_storage_root: Path = Path("./data/storage")
-    local_workers: int = 2
+    # 同时跑几个下载/拆解任务。任务是 IO 密集（等 yt-dlp、等模型回话），不是 CPU 密集，
+    # 所以 3 比 2 安全地多拿一半吞吐。别再往上加：ffmpeg 抽帧会抢 CPU，
+    # 并发一涨模型请求数跟着涨，免费模型的共享池会集体 429，反而更慢更不稳。
+    local_workers: int = 3
     # 整个检索子进程的总预算（秒）。要容得下 Python 启动 + import yt-dlp + 联网，
     # 8 秒在健康网络下都很紧（光 import 就要 1~2 秒）。
     search_timeout_seconds: int = 25
@@ -71,7 +74,9 @@ class Settings(BaseSettings):
     fast_scene_detect: bool = True
     # 逐段问模型时的并发数。免费模型单次不快，串行会等到天荒地老；
     # 但调太高容易被限流，超时后那一段会退回「只有截图」。
-    caption_concurrency: int = 6
+    # 4 × 3 个任务 = 12 路，和原来 2×6 的总预算持平，但任务吞吐从 2 提到 3；
+    # 免费模型走的是共享额度池，12 路是「够用又不触发 429」的量。
+    caption_concurrency: int = 4
 
     # ffmpeg 的位置（目录或可执行文件都行）。留空则自动在 PATH 里找。
     # yt-dlp 合并音视频要用它，找不到就会报 "ffmpeg is not installed"。
