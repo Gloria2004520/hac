@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     # yt-dlp 合并音视频要用它，找不到就会报 "ffmpeg is not installed"。
     ffmpeg_location: str | None = None
     yt_dlp_cookie_file: str | None = None
+    yt_dlp_cookie_browser: str | None = None
     allowed_video_domains: str = (
         "youtube.com,youtu.be,bilibili.com,b23.tv,tiktok.com,instagram.com"
     )

@@ -185,3 +185,5 @@ cd frontend && node server.cjs    # http://127.0.0.1:8766/
 免费模型可能受限流影响。
 
 两个服务都只监听本机地址；部署为公开服务前需添加用户认证、请求限额及服务端密钥管理。
+
+本地下载 YouTube 时，经用户明确授权后可在 `.env` 设置 `YT_DLP_COOKIE_BROWSER=chrome`，读取 Chrome 登录状态。macOS 可能请求钥匙串授权。仅对 YouTube 链接启用，默认关闭；`YT_DLP_COOKIE_FILE` 优先。不要提交浏览器凭证。
