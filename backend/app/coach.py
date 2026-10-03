@@ -129,6 +129,72 @@ def _provider_message(response: httpx.Response) -> str:
 
 _JSON_FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
+# 陪做这块自己的界面文案。zh 必须和改造前一字不差。
+_T: dict[str, dict[str, str]] = {
+    "no_model_reason": {
+        "zh": "我这边还没配模型密钥，没办法替你判定。先照着下面的合格标准自己过一遍，有拿不准的地方直接问我。",
+        "en": "I don't have a model key configured yet, so I can't judge this for you. Go through the pass criteria below yourself, and ask me about anything you're unsure of.",
+    },
+    "no_model_note": {
+        "zh": "没接模型，这条只是引导，不是判定。",
+        "en": "No model attached — this is guidance, not a verdict.",
+    },
+    "check_failed_reason": {
+        "zh": "这次没能判定：{error}",
+        "en": "Couldn't judge this time: {error}",
+    },
+    "check_failed_note": {
+        "zh": "模型没调通，别把这条当结论。",
+        "en": "The model call didn't go through — don't treat this as a verdict.",
+    },
+    "bad_format_reason": {
+        "zh": "模型这次没按格式回答，我没法判定。你可以把你的做法再说具体一点，比如「用了多少、看到什么颜色、什么状态」。",
+        "en": "The model didn't answer in the expected format, so I can't judge. Try describing what you did more concretely — how much you used, what colour you saw, what state it's in.",
+    },
+    "bad_format_note": {
+        "zh": "模型回复格式不完整，这条不算判定。",
+        "en": "The model's reply was incomplete — this doesn't count as a verdict.",
+    },
+    "no_reason": {"zh": "模型没有给理由。", "en": "The model gave no reason."},
+    "image_note_used": {"zh": "模型看了你发的照片。", "en": "The model looked at the photo you sent."},
+    "image_note_failed": {
+        "zh": "这次的模型没能读你的照片，判定只基于你写的文字。",
+        "en": "This model couldn't read your photo; the verdict is based on your text only.",
+    },
+    "image_note_disabled": {
+        "zh": "照片只留给你自己对照（配置里关掉了发图），判定只基于你写的文字。",
+        "en": "The photo is just for your own reference (sending images is off in the config); the verdict is based on your text only.",
+    },
+    "check_note_suffix": {
+        "zh": "模型没看过这个视频，判定依据是合格标准和你自己的描述。",
+        "en": "The model hasn't watched this video; the verdict is based on the pass criteria and your own description.",
+    },
+    "no_model_answer": {
+        "zh": "关于「{title}」这一步，判断标准是：{criteria}我这边还没配模型密钥，只能给你标准，你先对着它看一遍。",
+        "en": "For the step \"{title}\", the pass criteria are: {criteria}I don't have a model key configured yet, so all I can give you is the criteria — check yourself against it.",
+    },
+    "no_model_answer_note": {
+        "zh": "没接模型，这条用的是步骤自带的合格标准，不是模型回答。",
+        "en": "No model attached — this is the step's own pass criteria, not a model answer.",
+    },
+    "ask_failed_answer": {
+        "zh": "这次没能回答：{error}你先照着合格标准对一遍，或者再问我一次。",
+        "en": "Couldn't answer this time: {error} Check yourself against the pass criteria, or ask me again.",
+    },
+    "ask_failed_note": {"zh": "模型没调通。", "en": "The model call didn't go through."},
+    "ask_note": {
+        "zh": "模型写的，记得自己核对。",
+        "en": "Written by the model — double-check it yourself.",
+    },
+}
+
+
+def _t(key: str, lang: str) -> str:
+    table = _T.get(key)
+    if not table:
+        return key
+    return table.get("en" if lang == "en" else "zh") or table["zh"]
+
 
 def parse_loose_json(text: str) -> dict[str, Any] | None:
     """从模型的自由输出里挖一个 JSON 对象出来。免费模型经常包着解释文字或代码围栏。"""
@@ -191,6 +257,22 @@ CHECK_SYSTEM = "\n".join(
     ]
 )
 
+# 英文界面的同一套规矩。判定标准一个字都不能松：没有看过的画面就是不能编。
+CHECK_SYSTEM_EN = "\n".join(
+    [
+        'You are the step checker for "Slowly". The user is following a step-by-step tutorial and has stopped at one step; they describe their situation and you judge whether this step is done.',
+        "Judge only from three things: what this step asks for, the self-check question, and the pass criteria.",
+        "You have NOT watched the video, so you must never invent footage, timestamps, ingredients, brands, numbers or any specifics from it.",
+        "Rules:",
+        '- The description matches the pass criteria → verdict="pass";',
+        '- A key action/amount/state is clearly missing, or the user says it isn\'t finished → verdict="retry";',
+        '- Too vague, off-topic, or not enough information → verdict="unclear", and ask back for the single most necessary detail in `reason`.',
+        "Never pass someone out of kindness: if you can't tell, say unclear. Don't fail them just for sounding unsure either.",
+        "Always reply to the user in English. Output JSON only, no code fences, no explanations:",
+        '{"verdict":"pass|retry|unclear","reason":"2-3 sentences addressed to the user, saying why","detail":"when retry, what exactly is missing; empty string for pass/unclear"}',
+    ]
+)
+
 
 def _step_context(step: Any) -> str:
     return "\n".join(
@@ -215,22 +297,25 @@ def _fallback(reason: str, note: str, basis: str = "fallback") -> CheckOutcome:
     )
 
 
-def check_step(step: Any, report: str, image_data_url: str | None = None) -> CheckOutcome:
+def check_step(
+    step: Any,
+    report: str,
+    image_data_url: str | None = None,
+    *,
+    lang: str = "zh",
+) -> CheckOutcome:
     """判定一步过没过。永远返回结果，不抛异常——模型挂了也要给用户一句实话。"""
+    lang = "en" if lang == "en" else "zh"
+    system = CHECK_SYSTEM_EN if lang == "en" else CHECK_SYSTEM
     if not model_ready():
-        return _fallback(
-            "我这边还没配模型密钥，没办法替你判定。先照着下面的合格标准自己过一遍，"
-            "有拿不准的地方直接问我。",
-            "没接模型，这条只是引导，不是判定。",
-            basis="none",
-        )
+        return _fallback(_t("no_model_reason", lang), _t("no_model_note", lang), basis="none")
 
     wants_image = bool(image_data_url) and settings.model_vision_enabled
     text_only = f"{_step_context(step)}\n\n用户自己描述的现场情况：{report}"
 
     def with_image_messages() -> list[dict[str, Any]]:
         return [
-            {"role": "system", "content": CHECK_SYSTEM},
+            {"role": "system", "content": system},
             {
                 "role": "user",
                 "content": [
@@ -242,7 +327,7 @@ def check_step(step: Any, report: str, image_data_url: str | None = None) -> Che
 
     def text_only_messages() -> list[dict[str, Any]]:
         return [
-            {"role": "system", "content": CHECK_SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": text_only},
         ]
 
@@ -261,31 +346,34 @@ def check_step(step: Any, report: str, image_data_url: str | None = None) -> Che
             try:
                 raw = chat(text_only_messages(), max_tokens=500, temperature=0.2)
             except ModelError as retry_exc:
-                return _fallback(f"这次没能判定：{retry_exc}", "模型没调通，别把这条当结论。")
+                return _fallback(
+                    _t("check_failed_reason", lang).format(error=retry_exc),
+                    _t("check_failed_note", lang),
+                )
         else:
-            return _fallback(f"这次没能判定：{exc}", "模型没调通，别把这条当结论。")
+            return _fallback(
+                _t("check_failed_reason", lang).format(error=exc),
+                _t("check_failed_note", lang),
+            )
 
     if not image_data_url:
         image_note = ""
     elif used_image:
-        image_note = "模型看了你发的照片。"
+        image_note = _t("image_note_used", lang)
     elif settings.model_vision_enabled:
-        image_note = "这次的模型没能读你的照片，判定只基于你写的文字。"
+        image_note = _t("image_note_failed", lang)
     else:
-        image_note = "照片只留给你自己对照（配置里关掉了发图），判定只基于你写的文字。"
+        image_note = _t("image_note_disabled", lang)
 
     parsed = parse_loose_json(raw)
     verdict = _normalize_verdict(parsed.get("verdict") if parsed else None)
     if parsed is None or verdict is None:
-        return _fallback(
-            "模型这次没按格式回答，我没法判定。你可以把你的做法再说具体一点，比如「用了多少、看到什么颜色、什么状态」。",
-            "模型回复格式不完整，这条不算判定。",
-        )
+        return _fallback(_t("bad_format_reason", lang), _t("bad_format_note", lang))
 
-    reason = str(parsed.get("reason") or "").strip() or "模型没有给理由。"
+    reason = str(parsed.get("reason") or "").strip() or _t("no_reason", lang)
     detail = str(parsed.get("detail") or "").strip()
 
-    note = image_note + "模型没看过这个视频，判定依据是合格标准和你自己的描述。"
+    note = image_note + _t("check_note_suffix", lang)
     return CheckOutcome(
         verdict=verdict,
         reason=reason,
@@ -305,24 +393,34 @@ ASK_SYSTEM = "\n".join(
     ]
 )
 
+ASK_SYSTEM_EN = "\n".join(
+    [
+        'You are the coaching buddy of "Slowly". The user is following a step-by-step tutorial, is stuck at one step, and asks you a question.',
+        "Reply in English, conversational and short — usually 2-4 sentences. Give an actionable move or an observable check, not a recap of the whole tutorial.",
+        "You have NOT watched the video and have not heard its narration, so never invent footage, timestamps, proper nouns or numbers from it.",
+        "Say you're not sure when you aren't, or ask back the single most necessary question. No code fences, no bullet lists.",
+    ]
+)
 
-def ask_step(step: Any, question: str) -> dict[str, Any]:
+
+def ask_step(step: Any, question: str, *, lang: str = "zh") -> dict[str, Any]:
     """卡住时问一句。返回 {answer, basis, note, model_name}。"""
+    lang = "en" if lang == "en" else "zh"
+    system = ASK_SYSTEM_EN if lang == "en" else ASK_SYSTEM
     if not model_ready():
         return {
-            "answer": (
-                f"关于「{step.title}」这一步，判断标准是：{step.criteria}"
-                "我这边还没配模型密钥，只能给你标准，你先对着它看一遍。"
+            "answer": _t("no_model_answer", lang).format(
+                title=step.title, criteria=step.criteria
             ),
             "basis": "none",
-            "note": "没接模型，这条用的是步骤自带的合格标准，不是模型回答。",
+            "note": _t("no_model_answer_note", lang),
             "model_name": None,
         }
 
     try:
         answer = chat(
             [
-                {"role": "system", "content": ASK_SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": f"{_step_context(step)}\n\n用户的问题：{question}"},
             ],
             max_tokens=500,
@@ -330,15 +428,15 @@ def ask_step(step: Any, question: str) -> dict[str, Any]:
         )
     except ModelError as exc:
         return {
-            "answer": f"这次没能回答：{exc}你先照着合格标准对一遍，或者再问我一次。",
+            "answer": _t("ask_failed_answer", lang).format(error=exc),
             "basis": "none",
-            "note": "模型没调通。",
+            "note": _t("ask_failed_note", lang),
             "model_name": None,
         }
 
     return {
         "answer": answer,
         "basis": "model",
-        "note": "模型写的，记得自己核对。",
+        "note": _t("ask_note", lang),
         "model_name": settings.model_name,
     }

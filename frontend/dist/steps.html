@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fbf6df">
   <title>一步步做 · 慢慢来</title>
+  <script src="/i18n.js"></script>
   <style>
     :root{--ink:#494638;--muted:#96917e;--yellow:#f8d65b;--paper:#fffdf7;--bg:#fcf9ed;--line:#ece3cb}
     *{box-sizing:border-box}
@@ -97,22 +98,30 @@
     .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#494638;color:#fdf9ec;font-size:12.5px;padding:11px 17px;border-radius:22px;z-index:9;max-width:88vw;text-align:center;line-height:1.6}
     .toast[hidden]{display:none}
     .skeleton{color:var(--muted);font-size:13px;padding:20px 0;line-height:1.8}
+    .lang-switch{display:flex;align-items:center;border:1px solid #ded6bd;border-radius:20px;height:30px;background:#ffffff61;overflow:hidden;flex:0 0 auto}
+    .lang-switch button{min-height:28px;padding:0 10px;font-size:11.5px;color:var(--muted)}
+    .lang-switch button.on{background:var(--yellow);color:var(--ink);font-weight:650}
   </style>
 </head>
 <body>
   <div class="app">
     <header class="top">
-      <div class="brand"><span>✿</span>慢慢来</div>
-      <a class="back" id="backLink" href="/">返回聊天</a>
+      <div class="brand"><span>✿</span><span data-i18n="common.brand">慢慢来</span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="lang-switch" role="group" aria-label="切换语言" data-i18n-aria="common.lang_aria">
+          <button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button>
+        </div>
+        <a class="back" id="backLink" href="/" data-i18n="common.back">返回聊天</a>
+      </div>
     </header>
     <div class="scroll" id="scroll">
       <p class="eyebrow">STEP BY STEP</p>
-      <h1 id="videoTitle">正在读取教程…</h1>
+      <h1 id="videoTitle" data-i18n="steps.loading_title">正在读取教程…</h1>
       <p class="meta" id="videoMeta"></p>
 
       <div class="mock-note" id="mockNote" hidden></div>
 
-      <div id="loading" class="skeleton">正在把教程拆成一步步<span class="dots"></span></div>
+      <div id="loading" class="skeleton"><span data-i18n="steps.loading">正在把教程拆成一步步</span><span class="dots"></span></div>
       <div id="empty" class="empty" hidden>
         <p id="emptyText"></p>
         <button id="emptyAction">刷新看看</button>
@@ -132,18 +141,18 @@
         <div class="chips" id="chips"></div>
 
         <article class="card">
-          <video class="frame" id="stepClip" playsinline muted preload="metadata" aria-label="这一步在原视频里的那一小段，自动循环播放" hidden></video>
+          <video class="frame" id="stepClip" playsinline muted preload="metadata" aria-label="这一步在原视频里的那一小段，自动循环播放" data-i18n-aria="steps.clip_aria" hidden></video>
           <img class="frame" id="stepFrame" alt="这一步在原视频里的画面" hidden>
           <div class="clipmeta" id="clipMeta" hidden>
-            <div class="clipbar" id="clipBar" role="slider" tabindex="0" aria-label="这一小段的进度，点一下可以跳到那一段的任意位置" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="clipFill"></i></div>
+            <div class="clipbar" id="clipBar" role="slider" tabindex="0" aria-label="这一小段的进度，点一下可以跳到那一段的任意位置" data-i18n-aria="steps.clipbar_aria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="clipFill"></i></div>
             <span class="cliptime" id="clipTime"></span>
           </div>
           <span class="badge" id="stepBadge">…</span>
           <h2 id="stepTitle"></h2>
           <p class="summary" id="stepSummary"></p>
-          <p class="label">问自己</p>
+          <p class="label" data-i18n="steps.label_ask_self">问自己</p>
           <p class="question" id="stepQuestion"></p>
-          <p class="label">合格标准</p>
+          <p class="label" data-i18n="steps.label_criteria">合格标准</p>
           <div class="criteria" id="stepCriteria"></div>
           <div class="last-check" id="lastCheck" hidden></div>
           <div class="watch"><a id="watchBtn" target="_self" hidden>▶ 只看这一段</a></div>
@@ -151,28 +160,28 @@
         </article>
 
         <section class="card">
-          <h3>让小慢看看，这一步过没过</h3>
-          <p class="sub">说清楚你做了什么、现在什么状态，判得越准。</p>
-          <textarea id="report" placeholder="例如：我把东西都摆到手边了，一共三样，没有中途起身去找。"></textarea>
-          <label class="photo"><input type="file" accept="image/*" id="photo"><span id="photoLabel">＋ 加一张照片（可选）</span></label>
+          <h3 data-i18n="steps.check_title">让小慢看看，这一步过没过</h3>
+          <p class="sub" data-i18n="steps.check_sub">说清楚你做了什么、现在什么状态，判得越准。</p>
+          <textarea id="report" data-i18n-ph="steps.check_ph" placeholder="例如：我把东西都摆到手边了，一共三样，没有中途起身去找。"></textarea>
+          <label class="photo"><input type="file" accept="image/*" id="photo"><span id="photoLabel" data-i18n="steps.photo_label">＋ 加一张照片（可选）</span></label>
           <img class="preview" id="preview" alt="你选择的参考照片" hidden>
-          <button class="primary" id="checkBtn" style="width:100%;margin-top:12px">帮我看看过没过</button>
+          <button class="primary" id="checkBtn" style="width:100%;margin-top:12px" data-i18n="steps.check_btn">帮我看看过没过</button>
           <div class="result" id="checkResult" hidden></div>
         </section>
 
         <section class="card">
-          <h3>卡住了？直接问小慢</h3>
+          <h3 data-i18n="steps.ask_title">卡住了？直接问小慢</h3>
           <div class="ask-row">
-            <input type="text" id="askInput" placeholder="这一步的哪里不明白？">
-            <button id="askBtn">问</button>
+            <input type="text" id="askInput" data-i18n-ph="steps.ask_ph" placeholder="这一步的哪里不明白？">
+            <button id="askBtn" data-i18n="steps.ask_btn">问</button>
           </div>
           <div class="answer" id="askAnswer" hidden></div>
         </section>
 
         <section class="card">
-          <h3>这份拆分不对？</h3>
-          <p class="sub" id="regenHint">会换掉全部步骤，已勾的进度也一起清掉。</p>
-          <button class="primary quiet" id="regenBtn2">重新分解这条视频</button>
+          <h3 data-i18n="steps.regen_card_title">这份拆分不对？</h3>
+          <p class="sub" id="regenHint" data-i18n="steps.regen_card_sub">会换掉全部步骤，已勾的进度也一起清掉。</p>
+          <button class="primary quiet" id="regenBtn2" data-i18n="steps.regen_card_btn">重新分解这条视频</button>
         </section>
       </div>
     </div>
@@ -181,33 +190,28 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const t = (key, params) => I18N.t(key, params);
     const videoId = new URLSearchParams(location.search).get("id");
     let steps = [], activeIndex = 0, pendingImage = null, busy = false;
     let toastTimer = null, pollTimer = null, pollRounds = 0;
     // 每步的代表画面 = 本地 MP4 里对应的一小段（自己在这一段里循环）；播不了才退回截图
-    const CLIP_URL = "/api/videos/" + encodeURIComponent(videoId) + "/content";
+    const CLIP_URL = I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/content");
     let clipRange = null, clipRaf = 0, clipStepId = null, clipBroken = false;
     let clipFillWidth = "", clipTimeLabel = "";
     // 步骤条的鼠标拖拽（触屏天生就能横滑，不用管）
     let dragState = null, dragMoved = false;
 
-    const VERDICT = {
-      pass: { text: "这一步过了 ✓", cls: "pass" },
-      retry: { text: "还差一点", cls: "retry" },
-      unclear: { text: "这次说不清", cls: "unclear" },
+    // 判定结果和「这段边界怎么来的」都按当前语言取，切语言时跟着换
+    const VERDICT_KEY = { pass: "steps.verdict_pass", retry: "steps.verdict_retry", unclear: "steps.verdict_unclear" };
+    const VERDICT_CLS = { pass: "pass", retry: "retry", unclear: "unclear" };
+    const BASIS_KEY = {
+      shots: "steps.badge_shots",
+      even: "steps.badge_even",
+      mock: "steps.badge_mock",
+      sample: "steps.badge_sample",
+      manual: "steps.badge_manual",
     };
-    // 段边界怎么来的 + 文字是谁写的。短一点，一行说完，但不说假话。
-    const BASIS_TEXT = {
-      shots: "画面切段",
-      even: "平均分",
-      mock: "通用骨架",
-      sample: "人工示例",
-      manual: "手动加",
-    };
-    const TEXT_BASIS_TEXT = {
-      model: "模型看图写的",
-      none: "标题自己填",
-    };
+    const TEXT_BASIS_KEY = { model: "steps.badge_model", none: "steps.badge_none" };
 
     function notify(text) {
       $("toast").textContent = text;
@@ -227,12 +231,12 @@
       const raw = await response.text();
       let data;
       try { data = JSON.parse(raw); }
-      catch { throw new Error(response.status === 404 ? "接口不存在，请重启前端服务" : "服务返回了无法识别的响应"); }
+      catch { throw new Error(response.status === 404 ? t("common.readjson_404") : t("common.readjson_bad")); }
       if (!response.ok) {
         const detail = typeof data.detail === "string" ? data.detail
           : Array.isArray(data.detail) ? data.detail.map((item) => item.msg).filter(Boolean).join("；")
           : data.error;
-        throw new Error(detail || "请求失败");
+        throw new Error(I18N.mapServer(detail) || t("common.request_failed"));
       }
       return data;
     }
@@ -288,10 +292,10 @@
     }
 
     function renderVideo(video) {
-      $("videoTitle").textContent = video.title || "这个教程";
+      $("videoTitle").textContent = video.title || t("steps.loading_title");
       $("videoMeta").textContent = [video.uploader, formatDuration(video.duration_seconds)]
-        .filter(Boolean).join(" · ") || "本地视频";
-      document.title = (video.title ? video.title + " · 一步步做" : "一步步做") + " · 慢慢来";
+        .filter(Boolean).join(" · ") || t("common.local_video");
+      document.title = (video.title ? video.title + " · " : "") + t("steps.title");
       $("backLink").href = "/video.html?id=" + encodeURIComponent(videoId);
     }
 
@@ -300,13 +304,13 @@
         const chip = document.createElement("button");
         chip.className = "chip" + (index === activeIndex ? " on" : "") + (step.done ? " ok" : "");
         const time = document.createElement("i");
-        time.textContent = formatDuration(step.start_seconds) || "第 " + (index + 1) + " 步";
+        time.textContent = formatDuration(step.start_seconds) || t("steps.chip_step", { n: index + 1 });
         const title = document.createElement("b");
-        title.textContent = shortTitle(step.title) || "（没有标题）";
+        title.textContent = shortTitle(step.title) || t("common.no_title");
         chip.append(time, title);
         if (step.done) {
           const mark = document.createElement("u");
-          mark.textContent = "✓ 做到了";
+          mark.textContent = t("steps.chip_done");
           chip.append(mark);
         }
         chip.onclick = () => {
@@ -318,8 +322,8 @@
     }
 
     function frameUrl(step) {
-      return "/api/videos/" + encodeURIComponent(videoId)
-        + "/steps/" + encodeURIComponent(step.id) + "/frame";
+      return I18N.api("/api/videos/" + encodeURIComponent(videoId)
+        + "/steps/" + encodeURIComponent(step.id) + "/frame");
     }
 
     function stopClip() {
@@ -438,7 +442,7 @@
       const query = "start=" + encodeURIComponent(step.start_seconds)
         + "&end=" + encodeURIComponent(step.end_seconds);
       link.href = "/video.html?id=" + encodeURIComponent(videoId) + "&" + query;
-      link.textContent = "▶ 在整条视频里看这段 · " + formatDuration(start) + "–" + formatDuration(end);
+      link.textContent = t("steps.watch_link", { range: formatDuration(start) + "–" + formatDuration(end) });
       link.hidden = false;
     }
 
@@ -449,24 +453,24 @@
       renderClip(step);
       renderWatch(step);
 
-      const parts = [BASIS_TEXT[step.basis] || "步骤"];
-      parts.push(TEXT_BASIS_TEXT[step.text_basis] || "");
+      const parts = [t(BASIS_KEY[step.basis] || "steps.badge_fallback")];
+      parts.push(step.text_basis ? t(TEXT_BASIS_KEY[step.text_basis] || "steps.badge_none") : "");
       $("stepBadge").textContent = parts.filter(Boolean).join(" · ");
 
-      $("stepTitle").textContent = step.title || "（没有标题）";
+      $("stepTitle").textContent = step.title || t("common.no_title");
       $("stepSummary").textContent = step.summary;
       $("stepQuestion").textContent = step.question;
       $("stepCriteria").textContent = step.criteria;
 
       const done = $("doneBtn");
-      done.textContent = step.done ? "撤销「我做到了」" : "我做到了";
+      done.textContent = step.done ? t("steps.done_undo") : t("steps.done_btn");
       done.className = step.done ? "primary quiet" : "primary";
 
       const last = $("lastCheck");
       if (step.last_verdict && step.last_reason) {
-        const meta = VERDICT[step.last_verdict] || VERDICT.unclear;
-        last.className = "last-check " + meta.cls;
-        last.textContent = "小慢上次的判定 · " + meta.text + "：" + step.last_reason;
+        const key = VERDICT_KEY[step.last_verdict] || VERDICT_KEY.unclear;
+        last.className = "last-check " + (VERDICT_CLS[step.last_verdict] || "unclear");
+        last.textContent = t("steps.last_check_prefix") + t(key) + "：" + step.last_reason;
         last.hidden = false;
       } else {
         last.hidden = true;
@@ -477,12 +481,16 @@
       const total = steps.length;
       const done = steps.filter((step) => step.done).length;
       const position = Math.min(activeIndex + 1, total);
-      $("progressText").textContent = done === total && total > 0 ? "全部过啦 🎉" : "第 " + position + " / " + total + " 步";
-      $("doneText").textContent = "已完成 " + done + " 步";
+      $("progressText").textContent = done === total && total > 0
+        ? t("steps.progress_all")
+        : t("steps.progress_step", { pos: position, total });
+      $("doneText").textContent = t("steps.done_count", { n: done });
       $("bar").style.width = (total ? Math.round((done / total) * 100) : 0) + "%";
       // 有进度的时候重拆会把勾清掉，按钮变个颜色提醒一下（还是一点就生效）
       $("regenBtn").classList.toggle("warn", done > 0);
-      $("regenBtn").title = done > 0 ? "已经勾了 " + done + " 步，重拆会清掉" : "重新拆一遍";
+      $("regenBtn").title = done > 0
+        ? t("steps.regen_warn_title", { n: done })
+        : t("steps.regen_title_plain");
     }
 
     function render() {
@@ -509,7 +517,7 @@
       const button = $("saveBtn");
       button.hidden = false;
       button.classList.toggle("on", !!video.saved);
-      button.textContent = video.saved ? "已存下 ✓" : "存下来";
+      button.textContent = video.saved ? t("steps.saved") : t("steps.save");
     }
 
     async function toggleSave() {
@@ -518,10 +526,10 @@
       busy = true;
       button.disabled = true;
       try {
-        const response = await fetch("/api/videos/" + encodeURIComponent(videoId) + "/save", { method: "POST" });
+        const response = await fetch(I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/save"), { method: "POST" });
         const video = await readJson(response);
         renderSave(video);
-        notify(video.saved ? "存下来了，想做成的时候回来接着做。" : "已从「存着慢慢做」里拿掉了。");
+        notify(video.saved ? t("steps.toast_saved") : t("steps.toast_unsaved"));
       } catch (error) {
         notify(error.message);
       } finally {
@@ -534,13 +542,13 @@
       $("loading").hidden = true;
       $("body").hidden = true;
       $("emptyText").textContent = text;
-      $("emptyAction").textContent = "刷新看看";
+      $("emptyAction").textContent = t("steps.empty_action");
       $("emptyAction").onclick = () => location.reload();
       $("empty").hidden = false;
     }
 
     async function loadSteps(options = {}) {
-      const response = await fetch("/api/videos/" + encodeURIComponent(videoId) + "/steps", { cache: "no-store" });
+      const response = await fetch(I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/steps"), { cache: "no-store" });
       const data = await readJson(response);
       if (data.title) $("videoTitle").textContent = data.title;
       applyNote(data);
@@ -551,16 +559,16 @@
           $("empty").hidden = true;
           $("body").hidden = true;
           $("loading").hidden = false;
-          $("loading").textContent = data.note || "正在拆…";
+          $("loading").textContent = data.note || t("steps.loading");
           $("loading").className = "skeleton";
         } else {
-          notify("正在重新拆，下面的内容一会儿会换掉。");
+          notify(t("steps.regen_note_swap"));
         }
         schedulePoll(2500);
         return data;
       }
       if (data.waiting) {
-        showEmpty(data.note || "视频还在下载，下载完我就会按画面把它拆成一步步。");
+        showEmpty(data.note || t("steps.waiting_fallback"));
         schedulePoll(6000);
         return data;
       }
@@ -576,7 +584,7 @@
       activeIndex = found >= 0 ? found : Math.min(activeIndex, Math.max(0, steps.length - 1));
 
       if (!steps.length) {
-        showEmpty("这条视频没能拆出步骤。");
+        showEmpty(t("steps.empty_none"));
         return data;
       }
       const fresh = steps.findIndex((step) => !step.done);
@@ -594,7 +602,7 @@
       $("doneBtn").disabled = true;
       try {
         const response = await fetch(
-          "/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id),
+          I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id)),
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -619,17 +627,17 @@
       const buttons = [$("regenBtn"), $("regenBtn2")];
       const labels = buttons.map((button) => button.textContent);
       buttons.forEach((button) => { button.disabled = true; });
-      $("regenBtn").textContent = "正在重拆…";
+      $("regenBtn").textContent = t("steps.regen_busy");
       try {
         // 一次点击就生效：带上 force=1。会丢什么，按钮和下面那张卡都写着了。
         const response = await fetch(
-          "/api/videos/" + encodeURIComponent(videoId) + "/steps/regenerate?force=1",
+          I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/steps/regenerate?force=1"),
           { method: "POST" }
         );
 
         if (response.status === 409) {
           const data = await response.json();
-          notify(data.detail || "这条视频现在拆不了");
+          notify(data.detail || t("steps.regen_title_plain"));
           return;
         }
 
@@ -648,8 +656,8 @@
     function pickPhoto(input) {
       const file = input.files && input.files[0];
       if (!file) return;
-      if (!file.type.startsWith("image/")) { notify("请选一张图片"); return; }
-      if (file.size > 12 * 1024 * 1024) { notify("照片太大了，换一张小一点的"); return; }
+      if (!file.type.startsWith("image/")) { notify(t("steps.photo_bad_type")); return; }
+      if (file.size > 12 * 1024 * 1024) { notify(t("steps.photo_too_large")); return; }
 
       // 先在浏览器里压一下：省流量，也让判定更快
       const reader = new FileReader();
@@ -664,12 +672,12 @@
           pendingImage = canvas.toDataURL("image/jpeg", 0.82);
           $("preview").src = pendingImage;
           $("preview").hidden = false;
-          $("photoLabel").textContent = "↻ 换一张照片";
+          $("photoLabel").textContent = t("steps.photo_change");
         };
-        image.onerror = () => notify("这张图片读不出来，换一张试试");
+        image.onerror = () => notify(t("steps.photo_bad_decode"));
         image.src = reader.result;
       };
-      reader.onerror = () => notify("照片读取失败");
+      reader.onerror = () => notify(t("steps.photo_read_fail"));
       reader.readAsDataURL(file);
     }
 
@@ -677,15 +685,15 @@
       const step = activeStep();
       if (!step || busy) return;
       const report = $("report").value.trim();
-      if (!report && !pendingImage) { notify("先说两句你现在的状态，或者加一张照片"); return; }
+      if (!report && !pendingImage) { notify(t("steps.check_need_input")); return; }
 
       busy = true;
       $("checkBtn").disabled = true;
       const original = $("checkBtn").textContent;
-      $("checkBtn").textContent = "小慢正在看…";
+      $("checkBtn").textContent = t("steps.check_busy");
       try {
         const response = await fetch(
-          "/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id) + "/check",
+          I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id) + "/check"),
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -696,19 +704,19 @@
         replaceStep(data.step);
         render();
 
-        const meta = VERDICT[data.verdict] || VERDICT.unclear;
+        const verdictKey = VERDICT_KEY[data.verdict] || VERDICT_KEY.unclear;
         const box = $("checkResult");
-        box.className = "result " + meta.cls;
+        box.className = "result " + (VERDICT_CLS[data.verdict] || "unclear");
         box.replaceChildren();
         const head = document.createElement("strong");
-        head.textContent = meta.text;
+        head.textContent = t(verdictKey);
         const reason = document.createElement("div");
         reason.textContent = data.reason;
         box.append(head, reason);
         if (data.detail) {
           const detail = document.createElement("div");
           detail.className = "detail";
-          detail.textContent = "差在哪：" + data.detail;
+          detail.textContent = t("steps.check_detail_prefix") + data.detail;
           box.append(detail);
         }
         const basis = document.createElement("span");
@@ -729,13 +737,13 @@
     async function runAsk() {
       const step = activeStep();
       const question = $("askInput").value.trim();
-      if (!step || !question || busy) { if (!question) notify("先写一句你的问题"); return; }
+      if (!step || !question || busy) { if (!question) notify(t("steps.ask_empty")); return; }
       busy = true;
       $("askBtn").disabled = true;
       $("askBtn").textContent = "…";
       try {
         const response = await fetch(
-          "/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id) + "/ask",
+          I18N.api("/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id) + "/ask"),
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -757,7 +765,7 @@
       } finally {
         busy = false;
         $("askBtn").disabled = false;
-        $("askBtn").textContent = "问";
+        $("askBtn").textContent = t("steps.ask_btn");
       }
     }
 
@@ -821,13 +829,24 @@
       if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); runAsk(); }
     });
 
+    // 双语：先把静态文案刷成当前语言，再给切换按钮接线；切语言时整页重画
+    I18N.apply();
+    I18N.bootLanguageSwitch();
+    if (!document.title || document.title === "一步步做 · 慢慢来") document.title = t("steps.title");
+    document.addEventListener("langchange", () => {
+      I18N.apply();
+      document.title = t("steps.title");
+      $("stepFrame").alt = t("steps.frame_alt");
+      render();
+    });
+
     (async function start() {
       if (!videoId || !/^[A-Za-z0-9-]{1,64}$/.test(videoId)) {
-        showEmpty("这个地址里没有有效的任务。");
+        showEmpty(t("steps.empty_invalid"));
         return;
       }
       try {
-        const response = await fetch("/api/videos/" + encodeURIComponent(videoId), { cache: "no-store" });
+        const response = await fetch(I18N.api("/api/videos/" + encodeURIComponent(videoId)), { cache: "no-store" });
         const video = await readJson(response);
         renderVideo(video);
         renderSave(video);
@@ -837,7 +856,7 @@
       try {
         await loadSteps();
       } catch (error) {
-        showEmpty("暂时读不到步骤：" + error.message);
+        showEmpty(t("steps.empty_read_fail") + error.message);
       }
     })();
   </script>
