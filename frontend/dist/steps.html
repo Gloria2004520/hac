@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fbf6df">
+  <title>一步步做 · 慢慢来</title>
+  <style>
+    :root{--ink:#494638;--muted:#96917e;--yellow:#f8d65b;--paper:#fffdf7;--bg:#fcf9ed;--line:#ece3cb}
+    *{box-sizing:border-box}
+    body{margin:0;background:#ecebe5;color:var(--ink);font-family:'PingFang SC','Microsoft YaHei',sans-serif;-webkit-font-smoothing:antialiased;font-size:15px}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer;border:0;background:none;color:inherit;min-height:42px;transition:background .2s,transform .15s}
+    button:active{transform:scale(.97)}
+    button:disabled{opacity:.45;cursor:default}
+    button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid #ac8831;outline-offset:2px}
+    .app{width:100%;max-width:440px;min-height:100dvh;margin:auto;background:var(--bg);display:flex;flex-direction:column;position:relative}
+    .top{height:64px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fbf6df;position:sticky;top:0;z-index:3;border-bottom:1px solid #f2ecd8}
+    .brand{font-size:18px;font-weight:750;display:flex;gap:8px;align-items:center}
+    .brand span{font-size:25px;color:#b18c28}
+    .back{font-size:12px;color:var(--ink);text-decoration:none;border:1px solid #ded6bd;border-radius:20px;padding:7px 12px}
+    .scroll{flex:1;padding:20px 19px 40px}
+    .eyebrow{font-size:10px;letter-spacing:1.6px;color:#a18f58;margin:0 0 8px}
+    h1{font-size:21px;line-height:1.45;margin:0 0 7px;font-weight:750}
+    .meta{font-size:12px;color:var(--muted);margin:0}
+    .mock-note{background:#f6efd6;border-radius:12px;padding:11px 13px;font-size:11.5px;line-height:1.75;color:#8a7c4e;margin:16px 0 0}
+    .mock-note.real{background:#eef4ea;color:#5d7550}
+    .progress{margin-top:18px}
+    .progress .row{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:9px;gap:10px}
+    .progress strong{font-size:13.5px}
+    .progress .row span{color:var(--muted);font-size:11.5px}
+    .progress .row .regen{flex:0 0 auto;font-size:11px;color:#8d846d;border:1px solid #e2d9bf;border-radius:20px;padding:0 10px;min-height:28px}
+    .progress .row .save{flex:0 0 auto;font-size:11px;color:#80681f;border:1px solid #e2d9bf;border-radius:20px;padding:0 10px;min-height:28px;background:#fdf6dd}
+    .progress .row .save.on{background:#eef4ea;color:#4b7a45;border-color:#bcd9b6}
+    .progress .row .regen.warn{background:#fbeee9;color:#8f4639;border-color:#ebc9bf}
+    .watch{margin-top:14px}
+    .watch a{display:inline-block;font-size:12.5px;color:#80681f;text-decoration:none;border:1px solid #e8dcb8;border-radius:20px;padding:9px 14px;background:#fdf6dd}
+    .watch a[hidden]{display:none}
+    .track{height:8px;background:#e9e2ca;border-radius:10px;overflow:hidden}
+    .bar{height:100%;width:0;background:var(--yellow);border-radius:10px;transition:width .35s}
+    .chips{display:flex;gap:9px;overflow-x:auto;padding:18px 0 6px;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;cursor:grab;user-select:none}
+    .chips.dragging{cursor:grabbing}
+    .chip{flex:0 0 132px;text-align:left;padding:11px;border:1px solid var(--line);border-radius:13px;background:var(--paper);min-height:0}
+    .chip.on{border-color:#d9b64a;background:#fdf4d6}
+    .chip.ok{border-color:#bcd9b6;background:#f1f8ee}
+    .chip i{display:block;font-style:normal;font-size:10px;color:#a89f85;margin-bottom:5px}
+    .chip b{display:block;font-size:12px;font-weight:600;line-height:1.5;min-height:36px}
+    .chip u{display:block;text-decoration:none;font-size:10.5px;color:#4b7a45;margin-top:5px}
+    .card{background:var(--paper);border:1px solid #eee7d2;border-radius:19px;padding:18px;margin-top:14px;overflow:hidden}
+    .badge{display:inline-block;font-size:10.5px;background:#f6efd6;color:#8a7c4e;border-radius:9px;padding:4px 8px;margin-bottom:10px}
+    .badge.ok{background:#e8f2e4;color:#4b7a45}
+    .badge.retry{background:#f8e5df;color:#9c493d}
+    .frame{display:block;width:100%;border-radius:13px;background:#eee8d9;margin:-4px 0 12px}
+    .frame[hidden]{display:none}
+    #stepClip{cursor:pointer;background:#e9e1cd}
+    .clipmeta{display:flex;align-items:center;gap:10px;margin:-6px 2px 14px}
+    .clipmeta[hidden]{display:none}
+    .clipbar{flex:1 1 auto;height:7px;background:#e7dfc4;border-radius:10px;cursor:pointer;overflow:hidden}
+    .clipbar i{display:block;height:100%;width:0;background:var(--yellow);border-radius:10px}
+    .cliptime{flex:0 0 auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+    h2{font-size:18px;line-height:1.5;margin:0 0 9px;font-weight:750}
+    h3{font-size:14.5px;margin:0 0 6px;font-weight:700}
+    .summary{font-size:13px;line-height:1.85;color:#7d7663;margin:0}
+    .label{font-size:10.5px;color:#a89f85;letter-spacing:.4px;margin:17px 0 5px}
+    .question{font-size:16.5px;font-weight:700;line-height:1.55;margin:0}
+    .criteria{font-size:13px;line-height:1.8;background:#fbf6e2;border-left:3px solid var(--yellow);border-radius:0 10px 10px 0;padding:10px 12px}
+    .last-check{font-size:12px;line-height:1.75;border-radius:11px;padding:10px 12px;margin:14px 0 0;background:#f4f1e6;color:#7d7663}
+    .last-check.pass{background:#eef7ea;color:#436f3e}
+    .last-check.retry{background:#fbeee9;color:#8f4639}
+    .actions{margin-top:16px}
+    .actions button{width:100%}
+    .primary{background:var(--yellow);border-radius:13px;font-weight:650;padding:12px 16px;min-height:44px;box-shadow:0 6px 18px #e0c45533}
+    .primary.quiet{background:#f2eddc;box-shadow:none;color:#6f6852}
+    .sub{font-size:12px;color:#8d846d;line-height:1.75;margin:0 0 10px}
+    textarea,input[type=text]{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px;background:#fffef9;color:var(--ink);resize:vertical;min-height:74px;font-size:13.5px;line-height:1.7}
+    input[type=text]{min-height:44px}
+    .photo{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#7a7259;border:1px dashed #ddd3b6;border-radius:11px;padding:10px;margin-top:9px;cursor:pointer}
+    .photo input{display:none}
+    .preview{display:block;width:100%;max-height:190px;object-fit:cover;border-radius:12px;margin-top:10px;background:#eee8d9}
+    .preview[hidden]{display:none}
+    .result{margin-top:13px;border-radius:13px;padding:13px;font-size:13px;line-height:1.8}
+    .result.pass{background:#eef7ea;color:#3f6b3a}
+    .result.retry{background:#fbeee9;color:#8f4639}
+    .result.unclear{background:#f4f1e6;color:#7d7663}
+    .result strong{display:block;font-size:14px;margin-bottom:6px}
+    .result .detail{margin-top:8px;padding-top:8px;border-top:1px solid #00000012}
+    .result .basis{display:block;font-size:10.5px;margin-top:9px;opacity:.8}
+    .ask-row{display:flex;gap:8px;margin-top:4px}
+    .ask-row button{flex:0 0 62px;background:#f2eddc;border-radius:12px;font-weight:600}
+    .answer{margin-top:11px;background:#f7f4ea;border-radius:12px;padding:12px;font-size:13px;line-height:1.85;white-space:pre-wrap}
+    .answer .basis{display:block;font-size:10.5px;color:#a5956b;margin-top:9px}
+    .empty{background:var(--paper);border:1px solid #eee7d2;border-radius:19px;padding:24px 18px;text-align:center;margin-top:18px}
+    .empty p{font-size:13px;color:#8d846d;line-height:1.8;margin:0 0 14px}
+    .empty button{background:var(--yellow);color:var(--ink);border-radius:13px;padding:12px 18px;font-weight:650}
+    .dots::after{content:'';animation:dots 1.4s steps(4,end) infinite}
+    @keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+    .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#494638;color:#fdf9ec;font-size:12.5px;padding:11px 17px;border-radius:22px;z-index:9;max-width:88vw;text-align:center;line-height:1.6}
+    .toast[hidden]{display:none}
+    .skeleton{color:var(--muted);font-size:13px;padding:20px 0;line-height:1.8}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand"><span>✿</span>慢慢来</div>
+      <a class="back" id="backLink" href="/">返回聊天</a>
+    </header>
+    <div class="scroll" id="scroll">
+      <p class="eyebrow">STEP BY STEP</p>
+      <h1 id="videoTitle">正在读取教程…</h1>
+      <p class="meta" id="videoMeta"></p>
+
+      <div class="mock-note" id="mockNote" hidden></div>
+
+      <div id="loading" class="skeleton">正在把教程拆成一步步<span class="dots"></span></div>
+      <div id="empty" class="empty" hidden>
+        <p id="emptyText"></p>
+        <button id="emptyAction">刷新看看</button>
+      </div>
+
+      <div id="body" hidden>
+        <div class="progress">
+          <div class="row">
+            <strong id="progressText">第 1 步</strong>
+            <span id="doneText">已完成 0 步</span>
+            <button class="save" id="saveBtn" hidden>存下来</button>
+            <button class="regen" id="regenBtn">重新分解</button>
+          </div>
+          <div class="track"><div class="bar" id="bar"></div></div>
+        </div>
+
+        <div class="chips" id="chips"></div>
+
+        <article class="card">
+          <video class="frame" id="stepClip" playsinline muted preload="metadata" aria-label="这一步在原视频里的那一小段，自动循环播放" hidden></video>
+          <img class="frame" id="stepFrame" alt="这一步在原视频里的画面" hidden>
+          <div class="clipmeta" id="clipMeta" hidden>
+            <div class="clipbar" id="clipBar" role="slider" tabindex="0" aria-label="这一小段的进度，点一下可以跳到那一段的任意位置" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="clipFill"></i></div>
+            <span class="cliptime" id="clipTime"></span>
+          </div>
+          <span class="badge" id="stepBadge">…</span>
+          <h2 id="stepTitle"></h2>
+          <p class="summary" id="stepSummary"></p>
+          <p class="label">问自己</p>
+          <p class="question" id="stepQuestion"></p>
+          <p class="label">合格标准</p>
+          <div class="criteria" id="stepCriteria"></div>
+          <div class="last-check" id="lastCheck" hidden></div>
+          <div class="watch"><a id="watchBtn" target="_self" hidden>▶ 只看这一段</a></div>
+          <div class="actions"><button class="primary" id="doneBtn">我做到了</button></div>
+        </article>
+
+        <section class="card">
+          <h3>让小慢看看，这一步过没过</h3>
+          <p class="sub">说清楚你做了什么、现在什么状态，判得越准。</p>
+          <textarea id="report" placeholder="例如：我把东西都摆到手边了，一共三样，没有中途起身去找。"></textarea>
+          <label class="photo"><input type="file" accept="image/*" id="photo"><span id="photoLabel">＋ 加一张照片（可选）</span></label>
+          <img class="preview" id="preview" alt="你选择的参考照片" hidden>
+          <button class="primary" id="checkBtn" style="width:100%;margin-top:12px">帮我看看过没过</button>
+          <div class="result" id="checkResult" hidden></div>
+        </section>
+
+        <section class="card">
+          <h3>卡住了？直接问小慢</h3>
+          <div class="ask-row">
+            <input type="text" id="askInput" placeholder="这一步的哪里不明白？">
+            <button id="askBtn">问</button>
+          </div>
+          <div class="answer" id="askAnswer" hidden></div>
+        </section>
+
+        <section class="card">
+          <h3>这份拆分不对？</h3>
+          <p class="sub" id="regenHint">会换掉全部步骤，已勾的进度也一起清掉。</p>
+          <button class="primary quiet" id="regenBtn2">重新分解这条视频</button>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const videoId = new URLSearchParams(location.search).get("id");
+    let steps = [], activeIndex = 0, pendingImage = null, busy = false;
+    let toastTimer = null, pollTimer = null, pollRounds = 0;
+    // 每步的代表画面 = 本地 MP4 里对应的一小段（自己在这一段里循环）；播不了才退回截图
+    const CLIP_URL = "/api/videos/" + encodeURIComponent(videoId) + "/content";
+    let clipRange = null, clipRaf = 0, clipStepId = null, clipBroken = false;
+    let clipFillWidth = "", clipTimeLabel = "";
+    // 步骤条的鼠标拖拽（触屏天生就能横滑，不用管）
+    let dragState = null, dragMoved = false;
+
+    const VERDICT = {
+      pass: { text: "这一步过了 ✓", cls: "pass" },
+      retry: { text: "还差一点", cls: "retry" },
+      unclear: { text: "这次说不清", cls: "unclear" },
+    };
+    // 段边界怎么来的 + 文字是谁写的。短一点，一行说完，但不说假话。
+    const BASIS_TEXT = {
+      shots: "画面切段",
+      even: "平均分",
+      mock: "通用骨架",
+      sample: "人工示例",
+      manual: "手动加",
+    };
+    const TEXT_BASIS_TEXT = {
+      model: "模型看图写的",
+      none: "标题自己填",
+    };
+
+    function notify(text) {
+      $("toast").textContent = text;
+      $("toast").hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { $("toast").hidden = true; }, 4000);
+    }
+    function formatDuration(seconds) {
+      if (!seconds && seconds !== 0) return "";
+      const total = Math.round(seconds);
+      return Math.floor(total / 60) + ":" + String(total % 60).padStart(2, "0");
+    }
+    function shortTitle(title) {
+      return String(title || "").replace(/^第\s*\d+\s*步\s*·\s*/, "");
+    }
+    async function readJson(response) {
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); }
+      catch { throw new Error(response.status === 404 ? "接口不存在，请重启前端服务" : "服务返回了无法识别的响应"); }
+      if (!response.ok) {
+        const detail = typeof data.detail === "string" ? data.detail
+          : Array.isArray(data.detail) ? data.detail.map((item) => item.msg).filter(Boolean).join("；")
+          : data.error;
+        throw new Error(detail || "请求失败");
+      }
+      return data;
+    }
+
+    function activeStep() { return steps[activeIndex]; }
+
+    function setupChipsScroll() {
+      const chips = $("chips");
+
+      // 鼠标滚轮在步骤条上转成左右滑；滑到头就把竖向滚动交还给页面
+      chips.addEventListener("wheel", (event) => {
+        const maxLeft = chips.scrollWidth - chips.clientWidth;
+        if (maxLeft <= 0) return;
+        const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+        if (delta === 0) return;
+        const atStart = delta < 0 && chips.scrollLeft <= 0;
+        const atEnd = delta > 0 && chips.scrollLeft >= maxLeft - 1;
+        if (atStart || atEnd) return; // 到头了，让页面接着滚
+        event.preventDefault();
+        chips.scrollLeft += delta;
+      }, { passive: false });
+
+      // 按住拖动。不用 setPointerCapture——那会把 click 也吃掉，步骤就点不动了
+      chips.addEventListener("pointerdown", (event) => {
+        if (event.pointerType !== "mouse" || event.button !== 0) return;
+        dragState = { x: event.clientX, left: chips.scrollLeft };
+        dragMoved = false;
+        chips.classList.add("dragging");
+      });
+      window.addEventListener("pointermove", (event) => {
+        if (!dragState) return;
+        const dx = event.clientX - dragState.x;
+        if (Math.abs(dx) > 4) dragMoved = true;
+        chips.scrollLeft = dragState.left - dx;
+      });
+      window.addEventListener("pointerup", () => {
+        if (!dragState) return;
+        dragState = null;
+        chips.classList.remove("dragging");
+      });
+      window.addEventListener("pointercancel", () => {
+        if (!dragState) return;
+        dragState = null;
+        chips.classList.remove("dragging");
+      });
+    }
+
+    function schedulePoll(delay) {
+      clearTimeout(pollTimer);
+      pollRounds += 1;
+      if (pollRounds > 200) return; // 别无限轮询下去
+      pollTimer = setTimeout(() => { loadSteps({ silent: true }).catch(() => {}); }, delay);
+    }
+
+    function renderVideo(video) {
+      $("videoTitle").textContent = video.title || "这个教程";
+      $("videoMeta").textContent = [video.uploader, formatDuration(video.duration_seconds)]
+        .filter(Boolean).join(" · ") || "本地视频";
+      document.title = (video.title ? video.title + " · 一步步做" : "一步步做") + " · 慢慢来";
+      $("backLink").href = "/video.html?id=" + encodeURIComponent(videoId);
+    }
+
+    function renderChips() {
+      $("chips").replaceChildren(...steps.map((step, index) => {
+        const chip = document.createElement("button");
+        chip.className = "chip" + (index === activeIndex ? " on" : "") + (step.done ? " ok" : "");
+        const time = document.createElement("i");
+        time.textContent = formatDuration(step.start_seconds) || "第 " + (index + 1) + " 步";
+        const title = document.createElement("b");
+        title.textContent = shortTitle(step.title) || "（没有标题）";
+        chip.append(time, title);
+        if (step.done) {
+          const mark = document.createElement("u");
+          mark.textContent = "✓ 做到了";
+          chip.append(mark);
+        }
+        chip.onclick = () => {
+          if (dragMoved) return; // 刚才是拖拽，不是点这一步
+          activeIndex = index; render(); $("scroll").scrollTo({ top: 0, behavior: "smooth" });
+        };
+        return chip;
+      }));
+    }
+
+    function frameUrl(step) {
+      return "/api/videos/" + encodeURIComponent(videoId)
+        + "/steps/" + encodeURIComponent(step.id) + "/frame";
+    }
+
+    function stopClip() {
+      if (clipRaf) cancelAnimationFrame(clipRaf);
+      clipRaf = 0;
+      const clip = $("stepClip");
+      clip.pause();
+      clip.hidden = true;
+      $("clipMeta").hidden = true;
+    }
+
+    // 这一小段的进度条：量的是「这一段放到哪儿了」，不是整条视频播到哪儿了
+    function renderClipProgress() {
+      const clip = $("stepClip");
+      const meta = $("clipMeta");
+      if (!clipRange || clipBroken || clip.hidden) { meta.hidden = true; return; }
+      const span = clipRange.end - clipRange.start;
+      const played = Math.min(Math.max(clip.currentTime - clipRange.start, 0), span);
+      const ratio = span > 0 ? played / span : 0;
+
+      const width = (ratio * 100).toFixed(1) + "%";
+      if (width !== clipFillWidth) { clipFillWidth = width; $("clipFill").style.width = width; }
+      const label = formatDuration(played) + " / " + formatDuration(span);
+      if (label !== clipTimeLabel) { clipTimeLabel = label; $("clipTime").textContent = label; }
+      $("clipBar").setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      meta.hidden = false;
+    }
+
+    function seekClipByRatio(ratio) {
+      const clip = $("stepClip");
+      if (!clipRange || clip.readyState < 1) return;
+      const span = clipRange.end - clipRange.start;
+      const target = clipRange.start + Math.min(Math.max(ratio, 0), 1) * span;
+      clip.currentTime = Math.max(clipRange.start, Math.min(target, clipRange.end - 0.05));
+      renderClipProgress();
+      if (!clipRaf) clipRaf = requestAnimationFrame(watchClip); // 拖着看的时候进度条也得跟着走
+    }
+
+    // 播不了的时候的老办法：一张静态截图。有就露，没有就整个藏起来
+    function showStillFrame(step) {
+      const frame = $("stepFrame");
+      if (!step.has_frame) {
+        frame.hidden = true;
+        frame.removeAttribute("src");
+        return;
+      }
+      frame.onerror = () => { frame.hidden = true; };
+      frame.onload = () => { frame.hidden = false; };
+      frame.src = frameUrl(step);
+    }
+
+    function watchClip() {
+      const clip = $("stepClip");
+      if (!clipRange || clip.hidden) { clipRaf = 0; renderClipProgress(); return; }
+      // 放到这一步的结尾 → 悄悄回开头，接着放（不用 loop 属性，那会从头播整条视频）
+      if (!clip.paused && clip.currentTime >= clipRange.end - 0.05) {
+        clip.currentTime = clipRange.start;
+      }
+      renderClipProgress();
+      clipRaf = requestAnimationFrame(watchClip);
+    }
+
+    function playClipFrom(start) {
+      const clip = $("stepClip");
+      if (clip.readyState < 1) return;
+      clip.hidden = false;
+      if (Math.abs(clip.currentTime - start) > 0.25) clip.currentTime = start;
+      clip.play().catch(() => {});
+      renderClipProgress();
+      if (!clipRaf) clipRaf = requestAnimationFrame(watchClip);
+    }
+
+    function renderClip(step) {
+      const clip = $("stepClip");
+      const start = Number(step.start_seconds), end = Number(step.end_seconds);
+      const canPlay = !clipBroken && Number.isFinite(start) && Number.isFinite(end) && end > start;
+      if (!canPlay) {
+        clipRange = null;
+        stopClip();
+        showStillFrame(step);
+        return;
+      }
+
+      $("stepFrame").hidden = true; // 有得播了，静态截图先退场
+      clipRange = { start, end };
+
+      if (clipStepId !== step.id) {
+        clipStepId = step.id;
+        stopClip();
+        // 先挂这一步的截图当海报：画面没出来之前不至于是个空框，尺寸也稳
+        clip.poster = step.has_frame ? frameUrl(step) : "";
+        if (clip.dataset.clipUrl !== CLIP_URL) {
+          clip.dataset.clipUrl = CLIP_URL;
+          clip.src = CLIP_URL;
+        }
+        clip.hidden = false;
+        clipFillWidth = "";
+        clipTimeLabel = "";
+        renderClipProgress();
+      } else if (clip.hidden) {
+        clip.hidden = false;
+        renderClipProgress();
+      }
+      // 这一步的内容没变（比如刚勾完「我做到了」重画），别打断正在放的那一段
+      playClipFrom(start);
+    }
+
+    function renderWatch(step) {
+      const link = $("watchBtn");
+      const start = Number(step.start_seconds), end = Number(step.end_seconds);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+        link.hidden = true;
+        link.removeAttribute("href");
+        return;
+      }
+      const query = "start=" + encodeURIComponent(step.start_seconds)
+        + "&end=" + encodeURIComponent(step.end_seconds);
+      link.href = "/video.html?id=" + encodeURIComponent(videoId) + "&" + query;
+      link.textContent = "▶ 在整条视频里看这段 · " + formatDuration(start) + "–" + formatDuration(end);
+      link.hidden = false;
+    }
+
+    function renderActiveStep() {
+      const step = activeStep();
+      if (!step) return;
+
+      renderClip(step);
+      renderWatch(step);
+
+      const parts = [BASIS_TEXT[step.basis] || "步骤"];
+      parts.push(TEXT_BASIS_TEXT[step.text_basis] || "");
+      $("stepBadge").textContent = parts.filter(Boolean).join(" · ");
+
+      $("stepTitle").textContent = step.title || "（没有标题）";
+      $("stepSummary").textContent = step.summary;
+      $("stepQuestion").textContent = step.question;
+      $("stepCriteria").textContent = step.criteria;
+
+      const done = $("doneBtn");
+      done.textContent = step.done ? "撤销「我做到了」" : "我做到了";
+      done.className = step.done ? "primary quiet" : "primary";
+
+      const last = $("lastCheck");
+      if (step.last_verdict && step.last_reason) {
+        const meta = VERDICT[step.last_verdict] || VERDICT.unclear;
+        last.className = "last-check " + meta.cls;
+        last.textContent = "小慢上次的判定 · " + meta.text + "：" + step.last_reason;
+        last.hidden = false;
+      } else {
+        last.hidden = true;
+      }
+    }
+
+    function renderProgress() {
+      const total = steps.length;
+      const done = steps.filter((step) => step.done).length;
+      const position = Math.min(activeIndex + 1, total);
+      $("progressText").textContent = done === total && total > 0 ? "全部过啦 🎉" : "第 " + position + " / " + total + " 步";
+      $("doneText").textContent = "已完成 " + done + " 步";
+      $("bar").style.width = (total ? Math.round((done / total) * 100) : 0) + "%";
+      // 有进度的时候重拆会把勾清掉，按钮变个颜色提醒一下（还是一点就生效）
+      $("regenBtn").classList.toggle("warn", done > 0);
+      $("regenBtn").title = done > 0 ? "已经勾了 " + done + " 步，重拆会清掉" : "重新拆一遍";
+    }
+
+    function render() {
+      renderProgress();
+      renderChips();
+      renderActiveStep();
+    }
+
+    function replaceStep(updated) {
+      const index = steps.findIndex((step) => step.id === updated.id);
+      if (index >= 0) steps[index] = updated;
+    }
+
+    function applyNote(data) {
+      // 平时不再挂说明文字；只有「正在拆」「还在下载」这两种临时状态才说一句
+      const transient = data.analyzing || data.waiting;
+      if (!transient || !data.note) { $("mockNote").hidden = true; return; }
+      $("mockNote").className = "mock-note real";
+      $("mockNote").textContent = data.note;
+      $("mockNote").hidden = false;
+    }
+
+    function renderSave(video) {
+      const button = $("saveBtn");
+      button.hidden = false;
+      button.classList.toggle("on", !!video.saved);
+      button.textContent = video.saved ? "已存下 ✓" : "存下来";
+    }
+
+    async function toggleSave() {
+      const button = $("saveBtn");
+      if (busy) return;
+      busy = true;
+      button.disabled = true;
+      try {
+        const response = await fetch("/api/videos/" + encodeURIComponent(videoId) + "/save", { method: "POST" });
+        const video = await readJson(response);
+        renderSave(video);
+        notify(video.saved ? "存下来了，想做成的时候回来接着做。" : "已从「存着慢慢做」里拿掉了。");
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        busy = false;
+        button.disabled = false;
+      }
+    }
+
+    function showEmpty(text) {
+      $("loading").hidden = true;
+      $("body").hidden = true;
+      $("emptyText").textContent = text;
+      $("emptyAction").textContent = "刷新看看";
+      $("emptyAction").onclick = () => location.reload();
+      $("empty").hidden = false;
+    }
+
+    async function loadSteps(options = {}) {
+      const response = await fetch("/api/videos/" + encodeURIComponent(videoId) + "/steps", { cache: "no-store" });
+      const data = await readJson(response);
+      if (data.title) $("videoTitle").textContent = data.title;
+      applyNote(data);
+
+      // 后台还在拆 / 视频还在下载：这两种都不该清空页面，接着轮询
+      if (data.analyzing) {
+        if (!steps.length) {
+          $("empty").hidden = true;
+          $("body").hidden = true;
+          $("loading").hidden = false;
+          $("loading").textContent = data.note || "正在拆…";
+          $("loading").className = "skeleton";
+        } else {
+          notify("正在重新拆，下面的内容一会儿会换掉。");
+        }
+        schedulePoll(2500);
+        return data;
+      }
+      if (data.waiting) {
+        showEmpty(data.note || "视频还在下载，下载完我就会按画面把它拆成一步步。");
+        schedulePoll(6000);
+        return data;
+      }
+
+      clearTimeout(pollTimer);
+      pollRounds = 0;
+      $("loading").hidden = true;
+      $("empty").hidden = true;
+
+      const keepId = steps[activeIndex] && steps[activeIndex].id;
+      steps = data.steps || [];
+      const found = steps.findIndex((step) => step.id === keepId);
+      activeIndex = found >= 0 ? found : Math.min(activeIndex, Math.max(0, steps.length - 1));
+
+      if (!steps.length) {
+        showEmpty("这条视频没能拆出步骤。");
+        return data;
+      }
+      const fresh = steps.findIndex((step) => !step.done);
+      if (fresh >= 0 && !steps[activeIndex]) activeIndex = fresh;
+      $("body").hidden = false;
+      render();
+      if (!options.silent) $("scroll").scrollTo({ top: 0 });
+      return data;
+    }
+
+    async function toggleDone() {
+      const step = activeStep();
+      if (!step || busy) return;
+      busy = true;
+      $("doneBtn").disabled = true;
+      try {
+        const response = await fetch(
+          "/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id),
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ done: !step.done }),
+          }
+        );
+        replaceStep(await readJson(response));
+        const next = steps.findIndex((item) => !item.done);
+        if (next >= 0 && activeStep() && activeStep().done) activeIndex = next;
+        render();
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        busy = false;
+        $("doneBtn").disabled = false;
+      }
+    }
+
+    async function runRegenerate() {
+      if (busy) return;
+      busy = true;
+      const buttons = [$("regenBtn"), $("regenBtn2")];
+      const labels = buttons.map((button) => button.textContent);
+      buttons.forEach((button) => { button.disabled = true; });
+      $("regenBtn").textContent = "正在重拆…";
+      try {
+        // 一次点击就生效：带上 force=1。会丢什么，按钮和下面那张卡都写着了。
+        const response = await fetch(
+          "/api/videos/" + encodeURIComponent(videoId) + "/steps/regenerate?force=1",
+          { method: "POST" }
+        );
+
+        if (response.status === 409) {
+          const data = await response.json();
+          notify(data.detail || "这条视频现在拆不了");
+          return;
+        }
+
+        // 后端是后台拆、立刻返回 analyzing=true，剩下的交给轮询
+        await readJson(response);
+        activeIndex = 0; // 换了一批步骤，从头看
+        await loadSteps({ silent: true });
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        busy = false;
+        buttons.forEach((button, index) => { button.disabled = false; button.textContent = labels[index]; });
+      }
+    }
+
+    function pickPhoto(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) { notify("请选一张图片"); return; }
+      if (file.size > 12 * 1024 * 1024) { notify("照片太大了，换一张小一点的"); return; }
+
+      // 先在浏览器里压一下：省流量，也让判定更快
+      const reader = new FileReader();
+      reader.onload = () => {
+        const image = new Image();
+        image.onload = () => {
+          const scale = Math.min(1, 1024 / Math.max(image.width, image.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(image.width * scale);
+          canvas.height = Math.round(image.height * scale);
+          canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+          pendingImage = canvas.toDataURL("image/jpeg", 0.82);
+          $("preview").src = pendingImage;
+          $("preview").hidden = false;
+          $("photoLabel").textContent = "↻ 换一张照片";
+        };
+        image.onerror = () => notify("这张图片读不出来，换一张试试");
+        image.src = reader.result;
+      };
+      reader.onerror = () => notify("照片读取失败");
+      reader.readAsDataURL(file);
+    }
+
+    async function runCheck() {
+      const step = activeStep();
+      if (!step || busy) return;
+      const report = $("report").value.trim();
+      if (!report && !pendingImage) { notify("先说两句你现在的状态，或者加一张照片"); return; }
+
+      busy = true;
+      $("checkBtn").disabled = true;
+      const original = $("checkBtn").textContent;
+      $("checkBtn").textContent = "小慢正在看…";
+      try {
+        const response = await fetch(
+          "/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id) + "/check",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ report: report || "（只发了照片，没写文字）", image_data_url: pendingImage }),
+          }
+        );
+        const data = await readJson(response);
+        replaceStep(data.step);
+        render();
+
+        const meta = VERDICT[data.verdict] || VERDICT.unclear;
+        const box = $("checkResult");
+        box.className = "result " + meta.cls;
+        box.replaceChildren();
+        const head = document.createElement("strong");
+        head.textContent = meta.text;
+        const reason = document.createElement("div");
+        reason.textContent = data.reason;
+        box.append(head, reason);
+        if (data.detail) {
+          const detail = document.createElement("div");
+          detail.className = "detail";
+          detail.textContent = "差在哪：" + data.detail;
+          box.append(detail);
+        }
+        const basis = document.createElement("span");
+        basis.className = "basis";
+        basis.textContent = data.note;
+        box.append(basis);
+        box.hidden = false;
+        if (data.verdict === "pass") $("report").value = "";
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        busy = false;
+        $("checkBtn").disabled = false;
+        $("checkBtn").textContent = original;
+      }
+    }
+
+    async function runAsk() {
+      const step = activeStep();
+      const question = $("askInput").value.trim();
+      if (!step || !question || busy) { if (!question) notify("先写一句你的问题"); return; }
+      busy = true;
+      $("askBtn").disabled = true;
+      $("askBtn").textContent = "…";
+      try {
+        const response = await fetch(
+          "/api/videos/" + encodeURIComponent(videoId) + "/steps/" + encodeURIComponent(step.id) + "/ask",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question }),
+          }
+        );
+        const data = await readJson(response);
+        const box = $("askAnswer");
+        box.replaceChildren();
+        box.append(document.createTextNode(data.answer));
+        const basis = document.createElement("span");
+        basis.className = "basis";
+        basis.textContent = data.note;
+        box.append(basis);
+        box.hidden = false;
+        $("askInput").value = "";
+      } catch (error) {
+        notify(error.message);
+      } finally {
+        busy = false;
+        $("askBtn").disabled = false;
+        $("askBtn").textContent = "问";
+      }
+    }
+
+    $("doneBtn").addEventListener("click", toggleDone);
+    // 这一小段视频：元数据到了就跳到这一步的起点开播，点一下暂停/继续
+    $("stepClip").addEventListener("loadedmetadata", () => {
+      if (clipRange) playClipFrom(clipRange.start);
+    });
+    $("stepClip").addEventListener("click", () => {
+      const clip = $("stepClip");
+      if (clip.readyState < 1 || !clipRange) return;
+      if (clip.paused) playClipFrom(clip.currentTime);
+      else clip.pause();
+    });
+    $("stepClip").addEventListener("error", () => {
+      // 这条视频放不出来（文件没了 / 浏览器不认这个格式）：不再反复试，老实退回截图
+      clipBroken = true;
+      clipRange = null;
+      stopClip();
+      const step = activeStep();
+      if (step) showStillFrame(step);
+    });
+    // 这一段自己的进度条：点哪儿/拖到哪儿就跳到这一段的哪儿
+    $("clipBar").addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const bar = $("clipBar");
+      const seek = (clientX) => {
+        const rect = bar.getBoundingClientRect();
+        if (!rect.width) return;
+        seekClipByRatio((clientX - rect.left) / rect.width);
+      };
+      seek(event.clientX);
+      const onMove = (moveEvent) => seek(moveEvent.clientX);
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    });
+    $("clipBar").addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const clip = $("stepClip");
+      if (!clipRange) return;
+      event.preventDefault();
+      const span = clipRange.end - clipRange.start;
+      if (span <= 0) return;
+      // 左右键各走这一段的 5%
+      seekClipByRatio((clip.currentTime - clipRange.start) / span + (event.key === "ArrowRight" ? 0.05 : -0.05));
+    });
+    setupChipsScroll();
+    $("checkBtn").addEventListener("click", runCheck);
+    $("askBtn").addEventListener("click", runAsk);
+    $("regenBtn").addEventListener("click", runRegenerate);
+    $("regenBtn2").addEventListener("click", runRegenerate);
+    $("saveBtn").addEventListener("click", toggleSave);
+    $("photo").addEventListener("change", (event) => pickPhoto(event.target));
+    $("askInput").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); runAsk(); }
+    });
+
+    (async function start() {
+      if (!videoId || !/^[A-Za-z0-9-]{1,64}$/.test(videoId)) {
+        showEmpty("这个地址里没有有效的任务。");
+        return;
+      }
+      try {
+        const response = await fetch("/api/videos/" + encodeURIComponent(videoId), { cache: "no-store" });
+        const video = await readJson(response);
+        renderVideo(video);
+        renderSave(video);
+      } catch (error) {
+        console.warn("读取任务失败", error.message);
+      }
+      try {
+        await loadSteps();
+      } catch (error) {
+        showEmpty("暂时读不到步骤：" + error.message);
+      }
+    })();
+  </script>
+</body>
+</html>

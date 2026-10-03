@@ -17,6 +17,10 @@ if (fs.existsSync(envPath)) {
 
 const videoBackendUrl = (process.env.VIDEO_BACKEND_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 const port = Number.parseInt(process.env.PORT || "8766", 10);
+// 对话模型配置：默认使用 OpenRouter 免费模型，任何 OpenAI 兼容接口都可以用环境变量替换
+const modelApiBase = (process.env.MODEL_API_BASE || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+const modelApiKey = process.env.MODEL_API_KEY || process.env.OPENROUTER_API_KEY || "";
+const modelName = process.env.MODEL_NAME || "inclusionai/ling-3.0-flash-sante:free";
 
 function requestIsSameOrigin(req) {
   return !req.headers.origin || req.headers.origin === `http://${req.headers.host}`;
@@ -32,11 +36,13 @@ async function readBody(req, limit = 30_000) {
 }
 
 async function proxyJson(res, apiPath, options = {}) {
+  // 步骤检查要等模型回话，比普通的读任务慢，所以允许调用方放大超时
+  const { timeoutMs = 15_000, ...init } = options;
   try {
     const upstream = await fetch(`${videoBackendUrl}${apiPath}`, {
-      ...options,
-      headers: { Accept: "application/json", ...(options.headers || {}) },
-      signal: AbortSignal.timeout(15_000),
+      ...init,
+      headers: { Accept: "application/json", ...(init.headers || {}) },
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const body = await upstream.text();
     res.writeHead(upstream.status, {
@@ -46,7 +52,28 @@ async function proxyJson(res, apiPath, options = {}) {
     return res.end(body);
   } catch (error) {
     console.error("Video backend request failed:", error.message);
-    return reply(res, 502, { error: "暂时无法连接视频下载服务" });
+    return reply(res, error.name === "TimeoutError" ? 504 : 502, {
+      error: error.name === "TimeoutError"
+        ? "后端响应超时，这一步可能还在等模型，请稍后重试。"
+        : "暂时无法连接视频下载服务",
+    });
+  }
+}
+
+async function proxyBinary(res, apiPath) {
+  try {
+    const upstream = await fetch(`${videoBackendUrl}${apiPath}`);
+    const headers = { "Cache-Control": "private, max-age=3600" };
+    for (const name of ["content-type", "content-length"]) {
+      const value = upstream.headers.get(name);
+      if (value) headers[name] = value;
+    }
+    res.writeHead(upstream.status, headers);
+    if (!upstream.body) return res.end();
+    return Readable.fromWeb(upstream.body).pipe(res);
+  } catch (error) {
+    console.error("Binary proxy failed:", apiPath, error.message);
+    return reply(res, 502, { error: "暂时无法读取这张代表画面" });
   }
 }
 
@@ -94,14 +121,14 @@ function parseReply(content) {
 }
 
 async function requestModel(messages) {
-  const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const upstream = await fetch(`${modelApiBase}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${modelApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "inclusionai/ling-3.0-flash-sante:free",
+      model: modelName,
       messages: [{ role: "system", content: system }, ...messages],
       max_tokens: 900,
       temperature: 0.4,
@@ -162,7 +189,7 @@ http.createServer(async (req, res) => {
         }
         return { role: message.role, content: message.content };
       });
-      if (!process.env.OPENROUTER_API_KEY) return reply(res, 503, { error: "服务端尚未配置密钥" });
+      if (!modelApiKey) return reply(res, 503, { error: "服务端尚未配置密钥" });
 
       busy = true;
       const [modelResult, searchResult] = await Promise.all([
@@ -209,16 +236,105 @@ http.createServer(async (req, res) => {
   }
 
   const pathname = req.url.split("?")[0];
+
+  // ---- 步骤：真分解（ffmpeg 切点 + 视觉模型看图） + 检查 ----
+  const stepsListMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps$/);
+  if (req.method === "GET" && stepsListMatch) {
+    return proxyJson(res, `/api/videos/${stepsListMatch[1]}/steps`);
+  }
+
+  // 重新分解：会清掉已有步骤，所以 force 要原样带给后端，由后端决定要不要拦
+  const stepRegenMatch = pathname.match(
+    /^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps\/regenerate$/
+  );
+  if (req.method === "POST" && stepRegenMatch) {
+    if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    // 真分解要跑 ffmpeg + 挨段问模型，比普通请求慢得多
+    return proxyJson(res, `/api/videos/${stepRegenMatch[1]}/steps/regenerate${query}`, {
+      method: "POST",
+      timeoutMs: 180_000,
+    });
+  }
+
+  const stepFrameMatch = pathname.match(
+    /^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps\/([A-Za-z0-9-]{1,64})\/frame$/
+  );
+  if (req.method === "GET" && stepFrameMatch) {
+    return proxyBinary(res, `/api/videos/${stepFrameMatch[1]}/steps/${stepFrameMatch[2]}/frame`);
+  }
+
+  const stepActionMatch = pathname.match(
+    /^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps\/([A-Za-z0-9-]{1,64})\/(check|ask)$/
+  );
+  if (req.method === "POST" && stepActionMatch) {
+    if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    const [, videoId, stepId, action] = stepActionMatch;
+    try {
+      // 用户可能带一张照片过来，上限给到 9MB 字符（后端还会再校验一次）
+      const raw = await readBody(req, 9_000_000);
+      JSON.parse(raw);
+      return await proxyJson(res, `/api/videos/${videoId}/steps/${stepId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: raw,
+        timeoutMs: 60_000,
+      });
+    } catch (error) {
+      return reply(res, error.status || 400, { error: error.message || "请求格式不正确" });
+    }
+  }
+
+  const stepMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/steps\/([A-Za-z0-9-]{1,64})$/);
+  if (req.method === "PATCH" && stepMatch) {
+    if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    try {
+      const raw = await readBody(req);
+      JSON.parse(raw);
+      return proxyJson(res, `/api/videos/${stepMatch[1]}/steps/${stepMatch[2]}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: raw,
+      });
+    } catch (error) {
+      return reply(res, error.status || 400, { error: error.message || "请求格式不正确" });
+    }
+  }
+
+  // 存着慢慢做（列表在首页的 ⋯ 菜单里）
+  if (req.method === "GET" && pathname === "/api/saved-tutorials") {
+    return proxyJson(res, pathname);
+  }
+
+  // 任务列表（可带 ?saved=1 只看存下的教程）
+  if (req.method === "GET" && pathname === "/api/videos") {
+    return proxyJson(res, req.url);
+  }
+
   const videoMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})$/);
   if (req.method === "GET" && videoMatch) {
     return proxyJson(res, `/api/videos/${videoMatch[1]}`);
+  }
+
+  // 存下来 / 取消存
+  const saveMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/save$/);
+  if (req.method === "POST" && saveMatch) {
+    if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    return proxyJson(res, `/api/videos/${saveMatch[1]}/save`, { method: "POST" });
   }
   const contentMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/content$/);
   if (req.method === "GET" && contentMatch) {
     return proxyVideoContent(req, res, contentMatch[1]);
   }
 
-  if (req.method !== "GET" || !["/", "/index.html", "/video.html", "/vedio.html"].includes(pathname)) {
+  const pages = {
+    "/": "index.html",
+    "/index.html": "index.html",
+    "/video.html": "video.html",
+    "/vedio.html": "video.html",
+    "/steps.html": "steps.html",
+  };
+  if (req.method !== "GET" || !pages[pathname]) {
     res.writeHead(404);
     return res.end("Not found");
   }
@@ -227,6 +343,5 @@ http.createServer(async (req, res) => {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
   });
-  const filename = ["/video.html", "/vedio.html"].includes(pathname) ? "video.html" : "index.html";
-  return fs.createReadStream(path.join(root, "dist", filename)).pipe(res);
+  return fs.createReadStream(path.join(root, "dist", pages[pathname])).pipe(res);
 }).listen(port, "127.0.0.1", () => console.log(`Local demo: http://127.0.0.1:${port}`));

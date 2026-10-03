@@ -39,6 +39,7 @@ class VideoRead(BaseModel):
     object_key: str | None
     file_size: int | None
     mime_type: str | None
+    saved: bool
     created_at: datetime
     updated_at: datetime
 
@@ -66,3 +67,100 @@ class SearchResponse(BaseModel):
     cached: bool
     count: int
     items: list[SearchItem]
+
+
+class SavedTutorial(BaseModel):
+    """「存下来，慢慢做」列表里的一条。带上进度，用户一眼知道做到哪了。"""
+
+    id: str
+    title: str | None
+    uploader: str | None
+    duration_seconds: float | None
+    thumbnail_url: str | None
+    status: str
+    saved_at: datetime | None
+    # 已经拆出来了多少步、其中勾了几步。还没拆就是 0 / 0。
+    step_total: int = 0
+    step_done: int = 0
+
+
+# ---------- 步骤（分解 + 检查） ----------
+
+
+class StepRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    position: int
+    title: str
+    summary: str
+    question: str
+    criteria: str
+    hint: str | None
+    start_seconds: float | None
+    end_seconds: float | None
+    # 段边界怎么来的：shots=真实画面切换，even=总时长平均分，mock=通用骨架
+    basis: Literal["mock", "sample", "shots", "even", "manual"]
+    # 标题/说明/合格标准怎么来的：model=视觉模型看了代表帧写的，none=没人写（只有画面）
+    text_basis: Literal["model", "none"]
+    # 有没有留下这一段的代表画面（前端按 step id 取 /frame）
+    has_frame: bool
+    done: bool
+    done_at: datetime | None
+    user_note: str | None
+    last_verdict: Literal["pass", "retry", "unclear"] | None
+    last_reason: str | None
+    last_checked_at: datetime | None
+
+
+class StepsResponse(BaseModel):
+    video_id: str
+    title: str | None
+    total: int
+    done_count: int
+    # 整份步骤都是通用骨架、一个字都没读视频时才是 true
+    mock: bool
+    # 是否配了能看图的模型。没配的话，用户传的照片只会留给他自己对照，不会发给模型。
+    vision_ready: bool
+    # 后台正在拆，前端轮询等它变 false
+    analyzing: bool = False
+    # 视频还没下载完，现在没有步骤可给
+    waiting: bool = False
+    # 这份步骤用的方法：shots / even / mock / None（还没拆过）
+    basis: str | None = None
+    # 留下了几张代表画面
+    frame_count: int = 0
+    note: str
+    steps: list[StepRead]
+
+
+class StepUpdate(BaseModel):
+    done: bool | None = None
+    user_note: str | None = Field(default=None, max_length=500)
+
+
+class StepCheckRequest(BaseModel):
+    report: str = Field(min_length=1, max_length=2000)
+    # 可选的照片，data:image/...;base64,...
+    image_data_url: str | None = Field(default=None, max_length=8_000_000)
+
+
+class StepCheckResponse(BaseModel):
+    verdict: Literal["pass", "retry", "unclear"]
+    reason: str
+    detail: str
+    basis: Literal["model", "fallback", "none"]
+    note: str
+    model_name: str | None
+    step: StepRead
+
+
+class StepAskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=600)
+
+
+class StepAskResponse(BaseModel):
+    answer: str
+    basis: Literal["model", "fallback", "none"]
+    note: str
+    model_name: str | None

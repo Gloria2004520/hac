@@ -34,12 +34,39 @@ if settings.database_url.startswith("sqlite"):
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
+# create_all 只会建新表，不会给已有的表补列。开发期的 SQLite 加个轻量迁移，
+# 免得每次加字段都要手删数据库（那条已下载的视频就白下了）。
+_SQLITE_COLUMNS: dict[str, dict[str, str]] = {
+    "tutorial_steps": {
+        "breakdown_id": "VARCHAR(36)",
+        "text_basis": "VARCHAR(16) NOT NULL DEFAULT 'none'",
+        "frame_key": "TEXT",
+    },
+    "videos": {
+        "saved_at": "TIMESTAMP",
+    },
+}
+
+
+def _add_missing_columns(connection) -> None:
+    for table, columns in _SQLITE_COLUMNS.items():
+        existing = {
+            row[1] for row in connection.execute(text(f"PRAGMA table_info({table})"))
+        }
+        if not existing:
+            continue  # 表刚建出来，列本来就是齐的
+        for name, ddl in columns.items():
+            if name not in existing:
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 def create_tables() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     if settings.database_url.startswith("sqlite"):
         with engine.begin() as connection:
+            _add_missing_columns(connection)
             connection.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_video_platform_source_id "
                 "ON videos (source_platform, source_video_id) "

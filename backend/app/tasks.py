@@ -1,5 +1,7 @@
+import logging
 import mimetypes
 import re
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -15,6 +17,52 @@ from app.storage import save_file
 
 MEDIA_SUFFIXES = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
+logger = logging.getLogger("cookclip.tasks")
+
+
+def _friendly_error(message: str) -> str:
+    """把 yt-dlp 的原始报错翻成人话，并直接给出能落地的下一步。
+
+    页面那段红字用户是要照着做的，一段英文堆栈帮不了他。
+    """
+    lowered = message.lower()
+    if "sign in to confirm" in lowered and "bot" in lowered:
+        return (
+            "YouTube 认为当前网络像机器人，要求登录验证。两条路："
+            "① 用你登录过 YouTube 的浏览器导出一份 cookie（Netscape 格式），在 .env 里填 "
+            "YT_DLP_COOKIE_FILE=cookie 文件路径，重启后端；"
+            "② 或者换一个网络出口（比如手机热点）再试一次。"
+        )
+    if "sign in to confirm your age" in lowered or ("age" in lowered and "restrict" in lowered):
+        return "这个视频有年龄限制，需要用登录过 YouTube 的账号 cookie 才能下载（.env 里配 YT_DLP_COOKIE_FILE）。"
+    if "video unavailable" in lowered:
+        return "YouTube 说这个视频看不了（可能下架、地区限制或被删除）。换一条视频试试。"
+    if "private video" in lowered:
+        return "这是一个私有视频，YouTube 不允许下载，换一条公开视频。"
+    if "members-only" in lowered:
+        return "这是频道会员专享视频，需要对应会员的 cookie 才能下载。"
+    if "ffmpeg is not installed" in lowered or "ffmpeg not found" in lowered:
+        return "没找到 ffmpeg。装好后把 .env 里的 FFMPEG_LOCATION 指到它的 bin 目录，重启后端。"
+    if "unsupported url" in lowered or "is not a valid url" in lowered:
+        return "这个链接解析不了。目前支持 YouTube 视频链接，检查一下是不是贴错了。"
+    if "http error 429" in lowered or "too many requests" in lowered:
+        return "YouTube 在限流，稍等几分钟再试。"
+    return message
+
+
+def _schedule_breakdown(video_id: str) -> None:
+    """下载完顺手排一次分解。
+
+    这样用户点「一步步做」时通常已经拆好了。失败也没关系——那条路线是幂等的，
+    页面访问时还会再补一次。延迟 import 是为了避开 main <-> tasks 的循环依赖。
+    """
+    try:
+        from app.main import _start_analysis
+
+        _start_analysis(video_id)
+    except Exception as exc:  # noqa: BLE001 - 后台预取失败不该影响下载结果
+        logger.warning("视频 %s 下载完了，但没排上分解：%s", video_id, exc)
 
 
 def _update(session: Session, video: Video, **values) -> None:
@@ -32,6 +80,13 @@ def _find_downloaded_file(directory: Path) -> Path:
     if not candidates:
         raise RuntimeError("下载完成，但没有找到可用的视频文件")
     return max(candidates, key=lambda path: path.stat().st_size)
+
+
+def _ffmpeg_location() -> str | None:
+    """yt-dlp 合并音视频要用 ffmpeg。显式配置优先，找不到就让 yt-dlp 自己去找。"""
+    if settings.ffmpeg_location:
+        return settings.ffmpeg_location
+    return shutil.which("ffmpeg")
 
 
 def download_video(video_id: str) -> None:
@@ -57,6 +112,9 @@ def download_video(video_id: str) -> None:
         }
         if settings.yt_dlp_cookie_file:
             common_options["cookiefile"] = settings.yt_dlp_cookie_file
+        ffmpeg_path = _ffmpeg_location()
+        if ffmpeg_path:
+            common_options["ffmpeg_location"] = ffmpeg_path
 
         with yt_dlp.YoutubeDL({**common_options, "skip_download": True}) as downloader:
             info = downloader.extract_info(video.source_url, download=False)
@@ -146,11 +204,12 @@ def download_video(video_id: str) -> None:
                 mime_type=content_type,
             )
             # TemporaryDirectory removes the source and any yt-dlp fragments here.
+        _schedule_breakdown(video_id)
     except Exception as exc:
         session.rollback()
         video = session.get(Video, video_id)
         if video is not None:
-            message = ANSI_ESCAPE.sub("", str(exc))
+            message = _friendly_error(ANSI_ESCAPE.sub("", str(exc)))
             _update(session, video, status="failed", error_message=message[:2000])
         raise
     finally:

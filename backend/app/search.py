@@ -50,6 +50,92 @@ def _query_lock(cache_key: str) -> threading.Lock:
         return _query_locks.setdefault(cache_key, threading.Lock())
 
 
+def _as_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return str(value)
+
+
+# 这些字样说明「根本连不上」，而不是「平台限流」——两者要给用户完全不同的提示
+UNREACHABLE_MARKERS = (
+    "timed out",
+    "unable to download webpage",
+    "failed to resolve",
+    "name or service not known",
+    "connection refused",
+    "connection reset",
+    "proxyerror",
+    "network is unreachable",
+    "no route to host",
+)
+
+
+def _tail(partial: str) -> str:
+    return " / ".join(line.strip() for line in partial.splitlines() if line.strip())[-300:]
+
+
+def _failure_reason(partial: str) -> str:
+    """检索失败时给用户一句真话：是网络到不了，还是平台限流，还是别的原因。"""
+    tail = _tail(partial)
+    lower = tail.lower()
+    if "429" in tail or "too many requests" in lower:
+        return "视频平台当前限制了搜索请求，请稍后重试。"
+    if "sign in to confirm" in lower and "bot" in lower:
+        return (
+            "YouTube 认为当前网络像机器人，要求登录验证。"
+            "用登录过 YouTube 的浏览器导出一份 cookie 文件，在 .env 里填 "
+            "YT_DLP_COOKIE_FILE=文件路径 后重启后端；或者换一个网络出口再试，"
+            "也可以先直接粘贴视频链接。"
+        )
+    if any(marker in lower for marker in UNREACHABLE_MARKERS):
+        return (
+            "本机连不上 YouTube"
+            + (f"（{tail}）" if tail else "")
+            + "。检索需要能访问 YouTube 的网络；可以先粘贴视频链接，或者换一个能访问的平台。"
+        )
+    return "检索失败了" + (f"（{tail}）" if tail else "，原因未知") + "，可以稍后重试或直接粘贴视频链接。"
+
+
+def _timeout_reason(partial: str, seconds: int) -> str:
+    """超时到底是「网络到不了」还是「平台慢」，如实说清楚，别让用户瞎猜。"""
+    tail = _tail(partial)
+    if any(marker in tail.lower() for marker in UNREACHABLE_MARKERS):
+        return (
+            f"等了 {seconds} 秒，本机连不上 YouTube"
+            + (f"（{tail}）" if tail else "")
+            + "。检索需要能访问 YouTube 的网络；可以先粘贴视频链接，或者换一个能访问的平台。"
+        )
+    return (
+        f"等了 {seconds} 秒还没拿到结果"
+        + (f"（{tail}）" if tail else "")
+        + "，可以稍后重试，或直接粘贴视频链接。"
+    )
+
+
+def _payload_or_failure(stdout: str, stderr: str, returncode: int) -> dict[str, Any]:
+    """把子进程的输出判定成「结果」还是「失败」。
+
+    ⚠️ 这里踩过一个坑：yt-dlp 带了 --ignore-errors，整页检索失败时**照样会吐出 JSON**
+    （entries 里全是 null，返回码却是 1）。只判断「stdout 是否为空」会把它当成
+    「没搜到」，然后缓存一小时——对用户就是撒谎。所以返回码非 0 且没有一条可用
+    结果时，一律按失败报出去。
+    """
+    if not stdout.strip():
+        raise SearchUpstreamError(_failure_reason(stderr))
+
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise SearchUpstreamError("视频平台返回了无法识别的搜索结果") from exc
+
+    usable = [entry for entry in (payload.get("entries") or []) if entry and entry.get("id")]
+    if not usable and returncode != 0:
+        raise SearchUpstreamError(_failure_reason(stderr))
+    return payload
+
+
 def _run_search_process(query: str) -> dict[str, Any]:
     search_term = f"ytsearch{settings.search_fetch_limit}:{query} 教程"
     command = [
@@ -63,7 +149,7 @@ def _run_search_process(query: str) -> dict[str, Any]:
         "--playlist-end",
         str(settings.search_fetch_limit),
         "--socket-timeout",
-        str(settings.search_timeout_seconds),
+        str(settings.search_socket_timeout_seconds),
         "--retries",
         "1",
         "--extractor-retries",
@@ -84,23 +170,16 @@ def _run_search_process(query: str) -> dict[str, Any]:
     try:
         stdout, stderr = process.communicate(timeout=settings.search_timeout_seconds)
     except subprocess.TimeoutExpired as exc:
+        # 超时前 yt-dlp 已经打出来的报错别丢掉——它才说明到底是网络还是平台的问题
+        partial = _as_text(getattr(exc, "stderr", None)) or _as_text(getattr(exc, "output", None))
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except (AttributeError, ProcessLookupError):
             process.kill()
         process.communicate()
-        raise SearchTimeout("视频平台响应超时") from exc
+        raise SearchTimeout(_timeout_reason(partial, settings.search_timeout_seconds)) from exc
 
-    if process.returncode != 0 and not stdout.strip():
-        message = stderr.strip().splitlines()[-1] if stderr.strip() else "视频平台搜索失败"
-        if "429" in message or "Too Many Requests" in message:
-            raise SearchUpstreamError("视频平台当前限制了搜索请求，请稍后重试")
-        raise SearchUpstreamError(message[:300])
-
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError as exc:
-        raise SearchUpstreamError("视频平台返回了无法识别的搜索结果") from exc
+    return _payload_or_failure(stdout, stderr, process.returncode)
 
 
 def _thumbnail(entry: dict[str, Any]) -> str | None:
