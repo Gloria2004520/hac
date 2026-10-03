@@ -44,6 +44,9 @@ class Video(Base):
 
     # 用户点「存下来」的时间。空 = 没存。
     saved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 素材库分类。model=免费模型按标题与截图步骤判断；rule=标题关键词兜底。
+    library_category: Mapped[str | None] = mapped_column(String(16))
+    library_category_basis: Mapped[str | None] = mapped_column(String(16))
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

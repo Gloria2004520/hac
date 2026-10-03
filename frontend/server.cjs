@@ -306,6 +306,11 @@ http.createServer(async (req, res) => {
     return proxyJson(res, pathname);
   }
 
+  // 已经完成真实分解的教程素材库
+  if (req.method === "GET" && pathname === "/api/library") {
+    return proxyJson(res, pathname);
+  }
+
   // 任务列表（可带 ?saved=1 只看存下的教程）
   if (req.method === "GET" && pathname === "/api/videos") {
     return proxyJson(res, req.url);
@@ -333,7 +338,23 @@ http.createServer(async (req, res) => {
     "/video.html": "video.html",
     "/vedio.html": "video.html",
     "/steps.html": "steps.html",
+    "/library.html": "library.html",
   };
+  const libraryAssets = {
+    "/assets/library/cooking.png": "cooking.png",
+    "/assets/library/spicy-chicken.png": "spicy-chicken.png",
+    "/assets/library/washing-machine.png": "washing-machine.png",
+    "/assets/library/tools.png": "tools.png",
+    "/assets/library/other.png": "other.png",
+  };
+  if (req.method === "GET" && libraryAssets[pathname]) {
+    res.writeHead(200, {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=86400",
+      "X-Content-Type-Options": "nosniff",
+    });
+    return fs.createReadStream(path.join(root, "dist", "assets", "library", libraryAssets[pathname])).pipe(res);
+  }
   if (req.method !== "GET" || !pages[pathname]) {
     res.writeHead(404);
     return res.end("Not found");

@@ -18,9 +18,11 @@ from app.coach import ask_step, check_step
 from app.config import settings
 from app.database import SessionLocal, create_tables, get_db
 from app.local_queue import executor, submit
+from app.library import CATEGORY_LABELS, classify_tutorials, display_tutorial_title, keyword_category
 from app.models import StepInteraction, TutorialBreakdown, TutorialStep, Video, utcnow
 from app.schemas import (
     PlaybackRead,
+    LibraryItem,
     SavedTutorial,
     SearchResponse,
     StepAskRequest,
@@ -258,6 +260,96 @@ def list_saved_tutorials(db: Session = Depends(get_db)):
     ]
 
 
+@app.get("/api/library", response_model=list[LibraryItem])
+def list_library(db: Session = Depends(get_db)):
+    """已经完成真实分解的素材；最新分解失败或只有通用骨架时不展示。"""
+    videos = db.scalars(
+        select(Video)
+        .where(Video.status == "ready")
+        .order_by(Video.updated_at.desc())
+        .limit(100)
+    ).all()
+    if not videos:
+        return []
+
+    video_ids = [video.id for video in videos]
+    latest_by_video: dict[str, TutorialBreakdown] = {}
+    for record in db.scalars(
+        select(TutorialBreakdown)
+        .where(TutorialBreakdown.video_id.in_(video_ids))
+        .order_by(TutorialBreakdown.created_at.desc())
+    ).all():
+        latest_by_video.setdefault(record.video_id, record)
+
+    counts = {
+        video_id: (int(total or 0), int(done or 0))
+        for video_id, total, done in db.execute(
+            select(
+                TutorialStep.video_id,
+                func.count(TutorialStep.id),
+                func.sum(case((TutorialStep.done.is_(True), 1), else_=0)),
+            )
+            .where(TutorialStep.video_id.in_(video_ids))
+            .group_by(TutorialStep.video_id)
+        ).all()
+    }
+
+    unclassified = []
+    for video in videos:
+        record = latest_by_video.get(video.id)
+        total, _ = counts.get(video.id, (0, 0))
+        if (
+            not video.library_category
+            and record is not None
+            and record.status == "ready"
+            and record.method in {"shots", "even"}
+            and total
+        ):
+            step_titles = [step.title for step in _ordered_steps(video.id, db)]
+            unclassified.append({"id": video.id, "title": video.title, "step_titles": step_titles})
+    if unclassified:
+        classified = classify_tutorials(unclassified)
+        for video in videos:
+            if video.id in classified:
+                video.library_category, video.library_category_basis = classified[video.id]
+        db.commit()
+
+    items: list[LibraryItem] = []
+    for video in videos:
+        record = latest_by_video.get(video.id)
+        total, done = counts.get(video.id, (0, 0))
+        if (
+            record is None
+            or record.status != "ready"
+            or record.method not in {"shots", "even"}
+            or total == 0
+        ):
+            continue
+        category = video.library_category if video.library_category in CATEGORY_LABELS else None
+        category_basis = video.library_category_basis if video.library_category_basis in {"model", "rule"} else None
+        if category is None or category_basis is None:
+            category, category_basis = keyword_category(video.title)
+        category_label = CATEGORY_LABELS[category]
+        items.append(
+            LibraryItem(
+                id=video.id,
+                title=video.title or "未命名教程",
+                display_title=display_tutorial_title(video.title),
+                uploader=video.uploader,
+                duration_seconds=video.duration_seconds,
+                category=category,
+                category_label=category_label,
+                icon=category,
+                category_basis=category_basis,
+                step_total=total,
+                step_done=done,
+                breakdown_basis=record.method,
+                updated_at=video.updated_at,
+            )
+        )
+    return items[:50]
+
+
 @app.post("/api/videos/{video_id}/save", response_model=VideoRead)
 def toggle_save_video(video_id: str, db: Session = Depends(get_db)):
     """「存下来，慢慢做」：再点一次就是取消。进度和步骤本来就都在库里，
@@ -489,6 +581,14 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
                     1 for step in _ordered_steps(video_id, session) if step.frame_key
                 )
                 record.note = breakdown_module.real_note(result)
+                classification = classify_tutorials([
+                    {
+                        "id": video.id,
+                        "title": video.title,
+                        "step_titles": [segment.title for segment in result.segments],
+                    }
+                ])[video.id]
+                video.library_category, video.library_category_basis = classification
             else:
                 for draft in build_steps(video):
                     session.add(

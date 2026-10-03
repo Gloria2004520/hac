@@ -84,6 +84,24 @@ class SavedTutorial(BaseModel):
     step_done: int = 0
 
 
+class LibraryItem(BaseModel):
+    """素材库中的一条：只代表最新一次成功分解，不把通用骨架算作素材。"""
+
+    id: str
+    title: str
+    display_title: str
+    uploader: str | None
+    duration_seconds: float | None
+    category: Literal["cooking", "tools", "other"]
+    category_label: str
+    icon: Literal["cooking", "tools", "other"]
+    category_basis: Literal["model", "rule"]
+    step_total: int
+    step_done: int
+    breakdown_basis: Literal["shots", "even"]
+    updated_at: datetime
+
+
 # ---------- 步骤（分解 + 检查） ----------
 
 

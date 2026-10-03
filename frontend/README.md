@@ -22,20 +22,25 @@ Node.js 18 or newer; no dependencies to install. All commands below run in this 
 
 `server.cjs` locates `dist/` via `__dirname` and reads `.env` from the parent directory (the repo
 root). It is also the API proxy: it handles `/api/chat` itself (calling the backend's `/api/search`
-internally), and forwards `/api/videos*` and `/api/saved-tutorials` to `VIDEO_BACKEND_URL`
+internally), and forwards `/api/videos*`, `/api/saved-tutorials` and `/api/library` to `VIDEO_BACKEND_URL`
 unchanged. (`/api/search` is served by the backend only; the browser does not call it directly.)
 
-## The three pages
+## The four pages
 
 | Page | What it does |
 | --- | --- |
 | `dist/index.html` (`/`) | Chat home: ask, tap a suggested question to send it, preview YouTube results in a modal. Once you have saved something, a "saved to do slowly" entry appears (also reachable from the ⋯ menu) |
+| `dist/library.html` | Material library: successful real breakdowns in a hand-drawn grid, searchable and filterable by cooking, everyday tools or other tutorials |
 | `dist/video.html?id=` | One video: plays the original YouTube video while downloading, then switches to the local MP4; `?start=&end=` plays only that segment |
 | `dist/steps.html?id=` | Step by step: step strip, representative frame, checks, Q&A, save, re-break-down |
 
 ## What works today
 
 - Chat home; tapping a suggested question sends it.
+- A material-library entry on the home page. The library only lists tutorials whose latest real
+  breakdown succeeded; failed generic skeletons are not presented as completed material. The default
+  free model classifies from the title and screenshot-derived step titles, with title keywords as the
+  fallback; neither is presented as understanding the whole video.
 - When you ask something, the chat service calls FastAPI to search YouTube live. A failed search
   reports why it failed (unreachable / rate-limited / other) and offers "paste a video link" as an
   alternative — it is **never** reported as "nothing found".

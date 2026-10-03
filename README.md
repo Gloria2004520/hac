@@ -24,6 +24,7 @@ search, video storage, step breakdown). Both bind to localhost only.
 │   ├── chat-search.cjs    search result handling (unit test: chat-search.test.cjs)
 │   └── dist/
 │       ├── index.html     chat home: ask, live YouTube search, "saved to do slowly" entry
+│       ├── library.html   material library: completed real breakdowns, search + category filters
 │       ├── video.html     one video: download progress + playback (?start=&end= plays one segment)
 │       └── steps.html     step-by-step: steps + frames + checks + Q&A
 └── backend/               backend: FastAPI search + video storage + step breakdown
@@ -90,13 +91,14 @@ Everything else can stay empty. These few actually change what happens:
 
 See `.env.example` for the full list with comments.
 
-## The three pages
+## The four pages
 
 All served as static files by the same Node service:
 
 | Page | What it does |
 | --- | --- |
 | `index.html` (`/`) | Chat home. You ask something, the assistant answers and searches YouTube live; tap a result for a preview modal, tap "教程分解" to create a download job. Once you have saved something, a "saved to do slowly" entry appears on the page too |
+| `library.html` | Material library. Shows tutorials whose latest real breakdown completed successfully, with search and filters for cooking, everyday tools and other tutorials. The default free model classifies from the title and screenshot-derived step titles; keyword rules are the fallback. Neither implies whole-video understanding |
 | `video.html?id=` | One video. Plays the original YouTube video while downloading, then switches to the local MP4. With `?start=&end=` it plays just that segment (this is where "watch only this part" on the steps page goes) |
 | `steps.html?id=` | Step by step. Step strip + representative frame + "I did it" checkbox + "let the model check this step" + "ask when stuck"; you can save it, or re-break it down in one tap |
 
@@ -153,6 +155,7 @@ else straight to FastAPI.
 | POST | `/api/videos` | Create a download job (the page then navigates to `/video.html?id=`) |
 | GET | `/api/videos[?saved=1]` | Job list; `saved=1` for the saved ones only |
 | GET | `/api/saved-tutorials` | The "saved to do slowly" list, with progress `step_total` / `step_done` |
+| GET | `/api/library` | Successfully broken-down materials, with category and step progress |
 | GET | `/api/videos/{id}` | Status of one job (download progress, whether it is saved) |
 | POST | `/api/videos/{id}/save` | Save it; call again to unsave |
 | GET | `/api/videos/{id}/content` | The downloaded local MP4 (supports Range) |

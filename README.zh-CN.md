@@ -20,6 +20,7 @@
 │   ├── chat-search.cjs    检索结果处理（配 chat-search.test.cjs）
 │   └── dist/
 │       ├── index.html     聊天首页：提问、YouTube 检索、「存着慢慢做」入口
+│       ├── library.html   素材库：已成功真实分解的教程、搜索与分类筛选
 │       ├── video.html     单条视频页：下载进度 + 播放（?start=&end= 可只播一段）
 │       └── steps.html     一步步做：步骤 + 代表画面 + 判定 + 问答
 └── backend/               后端：FastAPI 检索 + 视频落库 + 步骤分解
@@ -86,13 +87,14 @@ MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
 
 完整清单和注释见 `.env.example`。
 
-## 三个页面
+## 四个页面
 
 都是同一个 Node 服务提供的静态文件：
 
 | 页面 | 做什么 |
 | --- | --- |
 | `index.html`（`/`） | 聊天首页。提问后小慢会回答并在 YouTube 实时检索教程；点结果弹窗预览，点「教程分解」建下载任务。存过教程后，页面上会多出一个「存着慢慢做」入口 |
+| `library.html` | 素材库。只展示最新一次真实分解成功的教程，可搜索并按做饭、日常工具、其他教程筛选。默认免费模型按标题和代表截图生成的步骤标题分类，不可用时退回标题关键词；两者都不表示模型理解了整段视频 |
 | `video.html?id=` | 单条视频页。下载期间播 YouTube 原视频，完成后自动切成本地 MP4；带 `?start=&end=` 时只播那一段（步骤页的「只看这一段」就是跳到这里） |
 | `steps.html?id=` | 一步步做。步骤条 + 代表画面 + 勾「我做到了」+ 让小慢看这一步过没过 + 卡住了直接问；可以「存下来」，也可以一键重新分解 |
 
@@ -139,6 +141,7 @@ MODEL_NAME=deepseek-chat                # 推理模型用 deepseek-reasoner
 | POST | `/api/videos` | 建下载任务（页面随后跳 `/video.html?id=`） |
 | GET | `/api/videos[?saved=1]` | 任务列表；`saved=1` 只看存下的 |
 | GET | `/api/saved-tutorials` | 「存着慢慢做」列表，带进度 `step_total` / `step_done` |
+| GET | `/api/library` | 已成功真实分解的素材列表，带分类和步骤进度 |
 | GET | `/api/videos/{id}` | 单条任务状态（下载进度、是否已存） |
 | POST | `/api/videos/{id}/save` | 「存下来」；再调一次取消 |
 | GET | `/api/videos/{id}/content` | 下载好的本地 MP4（支持 Range） |

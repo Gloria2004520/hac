@@ -44,6 +44,8 @@ _SQLITE_COLUMNS: dict[str, dict[str, str]] = {
     },
     "videos": {
         "saved_at": "TIMESTAMP",
+        "library_category": "VARCHAR(16)",
+        "library_category_basis": "VARCHAR(16)",
     },
 }
 
