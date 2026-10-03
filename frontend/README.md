@@ -25,6 +25,22 @@ root). It is also the API proxy: it handles `/api/chat` itself (calling the back
 internally), and forwards `/api/videos*`, `/api/saved-tutorials` and `/api/library` to `VIDEO_BACKEND_URL`
 unchanged. (`/api/search` is served by the backend only; the browser does not call it directly.)
 
+## Install as an app (PWA)
+
+The pages are a PWA: `dist/manifest.webmanifest` plus `dist/sw.js`, with icons under
+`dist/icons/`. On a phone, open the site, then "Add to Home Screen" (iOS Safari) or "Install app"
+(Android Chrome) — it opens full screen with its own icon, no store and no rewrite needed.
+
+The service worker caches the app shell only. `/api/*` is **never** cached: step progress, download
+state and the video stream are live data, and caching them would show last time's result as this
+time's. Navigations are network-first with a cached fallback, so the pages still open when the WiFi
+drops mid-demo. If you touch anything in `SHELL_ASSETS`, bump `VERSION` in `sw.js`.
+
+To open it on a phone over your local network, set `HOST=0.0.0.0` in `.env` and restart; the
+startup log prints the LAN URLs. This demo has no login, so anyone on the same Wi-Fi can use your
+backend and your model key — prefer a personal hotspot over a shared network, and set it back when
+done.
+
 ## The four pages
 
 | Page | What it does |

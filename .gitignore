@@ -29,3 +29,6 @@ backend/data/
 
 # 本地备份
 .git-broken-backup/
+
+# 本机助手工作数据（记忆日志等），不入库
+.workbuddy/

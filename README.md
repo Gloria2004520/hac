@@ -193,6 +193,15 @@ Requires Node.js 18 or newer; no dependencies to install.
 cd frontend && node server.cjs    # http://127.0.0.1:8766/
 ```
 
+The frontend is also a PWA: on a phone, "Add to Home Screen" / "Install app" and it opens full
+screen with its own icon (see `frontend/README.md`). To reach it from a phone on the same network,
+set `HOST=0.0.0.0` in `.env` first — the startup log then prints the LAN URLs. The demo has no
+login, so prefer a personal hotspot over a shared Wi-Fi and set it back afterwards.
+
+For a step-by-step setup, startup, phone-access and tear-down checklist — including the Windows
+firewall and macOS local-network gotchas — see [`docs/demo-runbook.zh-CN.md`](docs/demo-runbook.zh-CN.md)
+(in Chinese).
+
 ## Prototype limits
 
 Tutorial questions in the chat call FastAPI, which searches YouTube live. Clicking a result opens a
