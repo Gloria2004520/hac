@@ -198,13 +198,7 @@ Local demo: http://127.0.0.1:8766
 
 Windows 防火墙默认拒绝所有入站连接，没有放行规则时手机一定连不上。
 
-**一键脚本**（双击 → UAC 弹窗点「是」）：
-
-```
-docs\allow-lan-8766.bat
-```
-
-**或者**管理员 PowerShell / CMD 里跑：
+用**管理员**权限开一个 PowerShell 或 CMD 窗口，跑：
 
 ```
 netsh advfirewall firewall add rule name="slowly-demo 8766" dir=in action=allow protocol=TCP localport=8766
@@ -260,7 +254,7 @@ netsh advfirewall firewall add rule name="slowly-demo 8766" dir=in action=allow 
 
 这个 demo **没有任何登录**，局域网开着 = 同一个网络的人都能用你的后端和你的模型密钥。
 
-1. **删掉防火墙规则**（Windows）：双击 `docs\remove-lan-8766.bat`，或管理员窗口跑
+1. **删掉防火墙规则**（Windows）：管理员窗口跑
    `netsh advfirewall firewall delete rule name="slowly-demo 8766"`
    （macOS 没有这条规则，跳过；如果关过系统防火墙，记得开回来）
 2. **`HOST` 改回 `127.0.0.1`**（或注释掉），重启前端

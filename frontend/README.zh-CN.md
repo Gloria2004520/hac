@@ -9,7 +9,7 @@
 使用 Node.js 18 或更新版本，无需安装依赖。以下命令都在本目录（`frontend/`）中执行。
 
 1. 在仓库根目录把 `.env.example` 复制为 `.env`（前后端共用）。
-2. 在其中填写 `OPENROUTER_API_KEY`（默认免费模型用），勿提交密钥；要换成 DeepSeek 等见仓库根目录的 [README.zh-CN.md](../README.zh-CN.md) 里的「切换到 DeepSeek」。
+2. 在其中填写 `OPENROUTER_API_KEY`（默认免费模型用），勿提交密钥；要换成其他 OpenAI 兼容的模型提供方，见仓库根目录的 [README.zh-CN.md](../README.zh-CN.md) 里的「换成其他模型提供方」。
 3. 先按仓库根目录 README 启动 FastAPI 后端（默认 `http://127.0.0.1:8000`）。
 4. 运行 `node server.cjs`。
 5. 打开 http://127.0.0.1:8766/。
@@ -60,12 +60,12 @@ Service worker 只缓存应用外壳。`/api/*` 一律**不缓存**：步骤进�
   - 步骤条在电脑上也能滑（滚轮转横向 + 按住拖拽）。
   - 步骤与进度都存在后端 SQLite（`tutorial_steps` / `step_interactions` 表），刷新不丢。
   - 分解是**真的**：`backend/app/video_analysis.py` 用 ffmpeg 找画面切点、抽代表帧，`breakdown.py` 把每段发给视觉模型写标题/说明/合格标准。模型只看到每段中间的一张截图，没听声音、没做字幕转写；拆不出来时退回通用骨架（`mock=true` + 诚实说明）。
-  - 判定/问答走 `backend/app/coach.py`，用与对话相同的 OpenAI 兼容配置。照片默认一起发给模型（DeepSeek 的 `deepseek-chat` 实测能正确描述画面）；换成看不了图的模型时把 `MODEL_VISION_ENABLED` 设成 `false`，或用 `MODEL_VISION_NAME` 指定一个专门看图的模型。模型读不了照片会自动退一步只按文字判，并如实说明。
-- 使用 `MODEL_API_BASE` / `MODEL_API_KEY` / `MODEL_NAME` 指定的模型进行文字对话，默认是 OpenRouter 的 `inclusionai/ling-3.0-flash-sante:free` 免费模型，可切换为 DeepSeek 官方 API。
+  - 判定/问答走 `backend/app/coach.py`，用与对话相同的 OpenAI 兼容配置。照片默认一起发给模型（实测当前支持看图的模型能正确描述画面）；换成看不了图的模型时把 `MODEL_VISION_ENABLED` 设成 `false`，或用 `MODEL_VISION_NAME` 指定一个专门看图的模型。模型读不了照片会自动退一步只按文字判，并如实说明。
+- 使用 `MODEL_API_BASE` / `MODEL_API_KEY` / `MODEL_NAME` 指定的模型进行文字对话，默认是 OpenRouter 的 `inclusionai/ling-3.0-flash-sante:free` 免费模型，可切换为任意 OpenAI 兼容的模型提供方。
 - 本地视频预览，视频不会上传服务器。
 
 ## 原型限制
 
 YouTube 结果来自实时检索，点击后会下载到本机。下载和播放不代表 AI 已观看或解析视频。步骤页的分解只看每段中间的一张截图（画面切点 + 抽帧），没有听声音、没有字幕转写，所以模型写的是「这一帧里有什么」而不是「这一段讲了什么」；判定模型也没有看过视频，只依据合格标准、用户描述和可选的照片。请只保存你有权下载的公开视频。免费模型可能受限流影响。
 
-服务只监听本机地址；部署为公开服务前需添加用户认证、请求限额及服务端密钥管理。
+这是一个本地 demo，不是生产部署——后续待办见仓库根目录 [README.zh-CN.md](../README.zh-CN.md) 的「定位：本地演示，不是生产部署」一节。服务只监听本机地址；部署为公开服务前需添加用户认证、请求限额及服务端密钥管理。
