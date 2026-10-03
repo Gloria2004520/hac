@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
 
+import asyncio
+import faulthandler
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -12,11 +15,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import breakdown as breakdown_module
+from app import translate as translate_module
 from app import video_analysis
 from app.breakdown import build_steps, mock_note
 from app.coach import ask_step, check_step
 from app.config import settings
 from app.database import SessionLocal, create_tables, get_db
+from app.i18n import msg, normalize
 from app.local_queue import executor, submit
 from app.library import CATEGORY_LABELS, classify_tutorials, display_tutorial_title, keyword_category
 from app.models import StepInteraction, TutorialBreakdown, TutorialStep, Video, utcnow
@@ -48,10 +53,36 @@ from app.tasks import download_video
 
 logger = logging.getLogger("cookclip.breakdown")
 
+# 这个后端偶尔会「整只卡死」：端口还在监听，但所有请求（连 /api/health）都超时。
+# 之前两次都是靠重启混过去的，不知道卡在哪。这个看门狗专门抓现行：
+# 每 10 秒往事件循环里塞一个回调，5 秒还没跑，就把全部线程的调用栈写进 watchdog.log。
+# 下次再卡，日志里就是「卡在哪一行」的证据；如果连日志都没写，说明整个进程被外部冻结了。
+_WATCHDOG_LOG = Path(__file__).resolve().parent.parent / "watchdog.log"
+
+
+def _start_loop_watchdog() -> None:
+    loop = asyncio.get_running_loop()
+
+    def watch() -> None:
+        while True:
+            fired = threading.Event()
+            loop.call_soon_threadsafe(fired.set)
+            if not fired.wait(5.0):
+                try:
+                    with open(_WATCHDOG_LOG, "a", encoding="utf-8") as handle:
+                        handle.write(f"\n===== event loop stuck @ {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+                        faulthandler.dump_traceback(file=handle)
+                except OSError:
+                    pass
+            time.sleep(10)
+
+    threading.Thread(target=watch, name="loop-watchdog", daemon=True).start()
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     create_tables()
+    _start_loop_watchdog()
     session = SessionLocal()
     interrupted_ids: list[str] = []
     try:
@@ -457,10 +488,10 @@ def _is_analyzing(video_id: str) -> bool:
         return video_id in _running_analyses
 
 
-def _load_video(video_id: str, db: Session) -> Video:
+def _load_video(video_id: str, db: Session, lang: str = "zh") -> Video:
     video = db.get(Video, video_id)
     if video is None:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail=msg("error.video_not_found", lang))
     return video
 
 
@@ -494,20 +525,22 @@ def _local_video_path(video: Video) -> Path | None:
     return path if path.is_file() else None
 
 
-def _load_step(video_id: str, step_id: str, db: Session) -> TutorialStep:
+def _load_step(video_id: str, step_id: str, db: Session, lang: str = "zh") -> TutorialStep:
     step = db.get(TutorialStep, step_id)
     if step is None or step.video_id != video_id:
-        raise HTTPException(status_code=404, detail="这一步不存在")
+        raise HTTPException(status_code=404, detail=msg("error.step_not_found", lang))
     return step
 
 
 # ---------- 真分解 ----------
 
 
-def build_breakdown(video_id: str, *, force: bool = False) -> str:
+def build_breakdown(video_id: str, *, force: bool = False, lang: str = "zh") -> str:
     """给一条视频做一次分解，结果落库。幂等：已经拆过就直接返回。
 
     自己开 session，因为要能在后台线程里跑。返回 "ready" / "failed" / "missing"。
+    lang 决定卡片文字的生成语言（英文请求直接生成英文，省掉二次翻译）；
+    落库列永远存生成原文，record.lang 记下它是什么语言。
     """
     session = SessionLocal()
     try:
@@ -526,9 +559,10 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
 
             result: breakdown_module.Breakdown | None = None
             failure: str | None = None
+            generation_lang = normalize(lang)
             if source is not None:
                 try:
-                    result = breakdown_module.analyze(source)
+                    result = breakdown_module.analyze(source, lang=generation_lang)
                 except (video_analysis.AnalysisError, OSError) as exc:
                     failure = str(exc)
                 except Exception as exc:  # 别让一个奇怪的视频把整个页面打死
@@ -542,6 +576,7 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
                 method=result.method if result else breakdown_module.MOCK_BASIS,
                 status="ready" if result else "failed",
                 error_message=failure,
+                lang=generation_lang,
                 duration_seconds=result.duration if result else video.duration_seconds,
                 width=result.width if result else None,
                 height=result.height if result else None,
@@ -602,9 +637,9 @@ def build_breakdown(video_id: str, *, force: bool = False) -> str:
         session.close()
 
 
-def _run_breakdown_job(video_id: str, force: bool = False) -> None:
+def _run_breakdown_job(video_id: str, force: bool = False, lang: str = "zh") -> None:
     try:
-        build_breakdown(video_id, force=force)
+        build_breakdown(video_id, force=force, lang=lang)
     except Exception:  # 后台任务不能把异常抛到线程池外面
         logger.exception("后台分解 %s 崩了", video_id)
     finally:
@@ -612,18 +647,18 @@ def _run_breakdown_job(video_id: str, force: bool = False) -> None:
             _running_analyses.discard(video_id)
 
 
-def _start_analysis(video_id: str, *, force: bool = False) -> None:
+def _start_analysis(video_id: str, *, force: bool = False, lang: str = "zh") -> None:
     """起一个后台分解。已经在跑就不重复起（force 也只是等它跑完，不再排一个）。"""
     with _analysis_locks_guard:
         if video_id in _running_analyses:
             return
         _running_analyses.add(video_id)
     try:
-        submit(_run_breakdown_job, video_id, force)
+        submit(_run_breakdown_job, video_id, force, normalize(lang))
     except Exception:
         with _analysis_locks_guard:
             _running_analyses.discard(video_id)
-        raise HTTPException(status_code=503, detail="本地任务队列暂不可用，稍后再试")
+        raise HTTPException(status_code=503, detail=msg("error.queue_unavailable", lang))
 
 
 def _needs_analysis(video: Video, record: TutorialBreakdown | None) -> bool:
@@ -639,6 +674,80 @@ def _needs_analysis(video: Video, record: TutorialBreakdown | None) -> bool:
     return record.method == breakdown_module.MOCK_BASIS and _local_video_path(video) is not None
 
 
+_EN_STEP_FIELDS = (
+    ("en_title", "title"),
+    ("en_summary", "summary"),
+    ("en_question", "question"),
+    ("en_criteria", "criteria"),
+    ("en_hint", "hint"),
+)
+
+
+def _step_is_translated(step: TutorialStep) -> bool:
+    return bool((step.en_title or "").strip())
+
+
+def _ensure_english_steps(steps: list[TutorialStep], db: Session) -> bool:
+    """英文模式下确保这批步骤有英文文案；缺就现翻一次并落库。
+
+    返回 True = 全都有英文（可能刚翻好）；False = 模型不可用/没答上来，
+    调用方诚实退回中文（_steps_response 会给出如实提示）。
+    """
+    missing = [step for step in steps if not _step_is_translated(step)]
+    if not missing:
+        return True
+    if not settings.model_key:
+        return False
+
+    result = translate_module.translate_steps(
+        [
+            {
+                "title": step.title,
+                "summary": step.summary,
+                "question": step.question,
+                "criteria": step.criteria,
+                "hint": step.hint,
+            }
+            for step in missing
+        ]
+    )
+    if result is None:
+        return False
+
+    for index, step in enumerate(missing):
+        translated = result.get(index)
+        if not translated:
+            continue  # 个别步骤没翻过：那几步保持中文（has_en 判断会兜住）
+        if translated.get("title"):
+            step.en_title = translated["title"]
+        if translated.get("summary"):
+            step.en_summary = translated["summary"]
+        if translated.get("question"):
+            step.en_question = translated["question"]
+        if translated.get("criteria"):
+            step.en_criteria = translated["criteria"]
+        step.en_hint = translated.get("hint")  # None 合法（原本就没提示）
+    db.commit()
+    return all(_step_is_translated(step) for step in steps)
+
+
+def _step_read(step: TutorialStep, lang: str, record_lang: str = "zh") -> StepRead:
+    """按请求语言出文案。
+
+    落库列存的是「生成原文」（record.lang 记它是哪种语言）：
+    - 请求语言 == 生成语言 → 直接用原文，一个字都不动；
+    - 请求 en、原文 zh → en_* 列翻好了就覆盖，没翻好原样中文（不假装）。
+    """
+    if normalize(lang) == "en" and record_lang == "zh" and _step_is_translated(step):
+        data = StepRead.model_validate(step).model_dump()
+        for en_field, zh_field in _EN_STEP_FIELDS:
+            value = getattr(step, en_field)
+            if value is not None:
+                data[zh_field] = value
+        return StepRead(**data)
+    return StepRead.model_validate(step)
+
+
 def _steps_response(
     video: Video,
     steps: list[TutorialStep],
@@ -646,21 +755,36 @@ def _steps_response(
     *,
     analyzing: bool,
     waiting: bool,
+    lang: str = "zh",
 ) -> StepsResponse:
+    lang = normalize(lang)
+    record_lang = record.lang if record else "zh"
     note = record.note if record else ""
+    if lang == "en" and note:
+        # 诚实说明按同一份落库数据重建英文版，不是模型现翻的
+        note = breakdown_module.real_note_en(record)
     if analyzing:
         if steps:
             # 页面上还挂着上一次的结果。骨架的话直说它马上会被换掉；
             # 真拆过的话就什么都别挂（否则会把上一次那段长说明又翻出来）
             note = (
-                "下面这几步还是通用骨架。我正在按真实画面重新拆，一会儿会自动换掉，不用刷新。"
+                msg("note.reanalyzing_skeleton", lang)
                 if all(step.basis == breakdown_module.MOCK_BASIS for step in steps)
                 else ""
             )
         else:
-            note = "正在看画面。我会用 ffmpeg 找出画面真正切换的地方，再让看图的模型挨段看截图，可能要半分钟。"
+            note = msg("note.analyzing", lang)
     elif waiting and not steps:
-        note = "视频还在下载。下载完我会自动按画面把它拆成一步步，到时候刷新这一页就行。"
+        note = msg("note.waiting", lang)
+
+    # 翻译没跟上的两种情况都如实说，别让用户猜：
+    # - 英文请求、原文是中文、还没翻好 → 先看中文
+    # - 中文请求、但这版步骤是英文生成的 → 先看英文（重新分解一次并切回中文可拿到中文）
+    if steps:
+        if lang == "en" and record_lang == "zh" and any(not _step_is_translated(step) for step in steps) and not note:
+            note = msg("note.translation_unavailable", lang)
+        elif lang == "zh" and record_lang == "en":
+            note = (note + msg("note.steps_english_only", lang)).strip()
 
     return StepsResponse(
         video_id=video.id,
@@ -675,52 +799,60 @@ def _steps_response(
         basis=record.method if record else None,
         frame_count=sum(1 for step in steps if step.frame_key),
         note=note,
-        steps=[StepRead.model_validate(step) for step in steps],
+        steps=[_step_read(step, lang, record_lang) for step in steps],
     )
 
 
-def _validate_image(image_data_url: str | None) -> str | None:
+def _validate_image(image_data_url: str | None, lang: str = "zh") -> str | None:
     if image_data_url is None:
         return None
     value = image_data_url.strip()
     if not value:
         return None
     if not value.startswith("data:image/"):
-        raise HTTPException(status_code=400, detail="照片格式不对，只接受 data:image/... 开头的图片")
+        raise HTTPException(status_code=400, detail=msg("error.photo_format", lang))
     if len(value) > MAX_IMAGE_CHARS:
-        raise HTTPException(status_code=413, detail="照片太大了，换一张小一点的")
+        raise HTTPException(status_code=413, detail=msg("error.photo_too_large", lang))
     return value
 
 
 @app.get("/api/videos/{video_id}/steps", response_model=StepsResponse)
-def get_video_steps(video_id: str, db: Session = Depends(get_db)):
+def get_video_steps(
+    video_id: str,
+    lang: str = Query(default="zh"),
+    db: Session = Depends(get_db),
+):
     """拿到这条视频的步骤。
 
     第一次访问（或素材刚到位）会自动起一个后台分解，这时返回 analyzing=true，
     前端轮询等它变成 false 即可——不要在这里同步跑，不然页面会卡住半分钟。
     """
-    video = _load_video(video_id, db)
+    video = _load_video(video_id, db, lang)
     source = _local_video_path(video)
     ready = video.status == "ready" and source is not None
     record = _latest_breakdown(video_id, db)
 
     if not ready:
         # 还没下载完：不给假步骤，就说清楚在等什么
-        return _steps_response(video, [], record, analyzing=False, waiting=True)
+        return _steps_response(video, [], record, analyzing=False, waiting=True, lang=lang)
 
     if _needs_analysis(video, record):
-        _start_analysis(video_id)
+        _start_analysis(video_id, lang=lang)
 
     db.expire_all()
-    video = _load_video(video_id, db)
+    video = _load_video(video_id, db, lang)
     steps = _ordered_steps(video_id, db)
     record = _latest_breakdown(video_id, db)
+    if normalize(lang) == "en" and steps and (record is None or record.lang == "zh"):
+        # 英文请求 + 中文生成的步骤：现翻一次并落库；英文生成的直接用原文，不用翻
+        _ensure_english_steps(steps, db)
     return _steps_response(
         video,
         steps,
         record,
         analyzing=_is_analyzing(video_id) or _needs_analysis(video, record),
         waiting=False,
+        lang=lang,
     )
 
 
@@ -728,6 +860,7 @@ def get_video_steps(video_id: str, db: Session = Depends(get_db)):
 def regenerate_video_steps(
     video_id: str,
     force: bool = Query(default=False),
+    lang: str = Query(default="zh"),
     db: Session = Depends(get_db),
 ):
     """重新拆一次。
@@ -736,43 +869,47 @@ def regenerate_video_steps(
     「重新拆一遍会换掉全部步骤」。这里保留 force 这道闸，是给直接打接口的场景兜底——
     有进度又没带 force 的话，先告诉调用方会丢什么，别让它悄悄清掉。
     """
-    video = _load_video(video_id, db)
+    video = _load_video(video_id, db, lang)
     if _local_video_path(video) is None:
-        raise HTTPException(status_code=409, detail="这条视频还没下载到本地，没法重拆。")
+        raise HTTPException(status_code=409, detail=msg("error.cannot_regen_not_local", lang))
 
     steps = _ordered_steps(video_id, db)
     done_count = sum(1 for step in steps if step.done)
     if done_count and not force:
         raise HTTPException(
             status_code=409,
-            detail=(
-                f"你已经做到了 {done_count} 步。重新分解会换掉全部步骤，"
-                "这些勾和判定记录都会清掉。确认的话带上 force=1 再来一次。"
-            ),
+            detail=msg("error.regen_would_reset", lang).format(done=done_count),
         )
 
     # 后台跑，别把请求挂在这里等半分钟；前端拿到 analyzing=true 会自己轮询
-    _start_analysis(video_id, force=True)
+    _start_analysis(video_id, force=True, lang=lang)
     db.expire_all()
-    video = _load_video(video_id, db)
+    video = _load_video(video_id, db, lang)
     steps = _ordered_steps(video_id, db)
     record = _latest_breakdown(video_id, db)
-    return _steps_response(video, steps, record, analyzing=True, waiting=False)
+    if normalize(lang) == "en" and steps and (record is None or record.lang == "zh"):
+        _ensure_english_steps(steps, db)
+    return _steps_response(video, steps, record, analyzing=True, waiting=False, lang=lang)
 
 
 @app.get("/api/videos/{video_id}/steps/{step_id}/frame")
-def get_step_frame(video_id: str, step_id: str, db: Session = Depends(get_db)):
+def get_step_frame(
+    video_id: str,
+    step_id: str,
+    lang: str = Query(default="zh"),
+    db: Session = Depends(get_db),
+):
     """这一步的代表画面。没有就如实 404，不要拿别的图糊弄。"""
-    _load_video(video_id, db)
-    step = _load_step(video_id, step_id, db)
+    _load_video(video_id, db, lang)
+    step = _load_step(video_id, step_id, db, lang)
     if not step.frame_key:
-        raise HTTPException(status_code=404, detail="这一步没有留下代表画面")
+        raise HTTPException(status_code=404, detail=msg("error.no_frame", lang))
     try:
         path = resolve_object(step.frame_key)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="代表画面的路径不对") from exc
+        raise HTTPException(status_code=400, detail=msg("error.frame_path_bad", lang)) from exc
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="代表画面的文件不在了")
+        raise HTTPException(status_code=404, detail=msg("error.frame_missing", lang))
     return FileResponse(
         path,
         media_type="image/jpeg",
@@ -785,11 +922,12 @@ def update_step(
     video_id: str,
     step_id: str,
     payload: StepUpdate,
+    lang: str = Query(default="zh"),
     db: Session = Depends(get_db),
 ):
     """用户自己勾「我做到了」/ 撤销，或者留一句备注。"""
-    _load_video(video_id, db)
-    step = _load_step(video_id, step_id, db)
+    _load_video(video_id, db, lang)
+    step = _load_step(video_id, step_id, db, lang)
 
     if payload.done is not None and payload.done != step.done:
         step.done = payload.done
@@ -804,7 +942,7 @@ def update_step(
 
     db.commit()
     db.refresh(step)
-    return step
+    return _step_read(step, lang)
 
 
 @app.post("/api/videos/{video_id}/steps/{step_id}/check", response_model=StepCheckResponse)
@@ -812,14 +950,15 @@ def check_video_step(
     video_id: str,
     step_id: str,
     payload: StepCheckRequest,
+    lang: str = Query(default="zh"),
     db: Session = Depends(get_db),
 ):
     """「让小慢帮我看看」：按这一步的合格标准判定过没过。判定通过就自动记成做到了。"""
-    video = _load_video(video_id, db)
-    step = _load_step(video_id, step_id, db)
-    image = _validate_image(payload.image_data_url)
+    video = _load_video(video_id, db, lang)
+    step = _load_step(video_id, step_id, db, lang)
+    image = _validate_image(payload.image_data_url, lang)
 
-    outcome = check_step(step, payload.report.strip(), image)
+    outcome = check_step(step, payload.report.strip(), image, lang=lang)
 
     step.last_verdict = outcome.verdict
     step.last_reason = outcome.reason
@@ -861,13 +1000,14 @@ def ask_video_step(
     video_id: str,
     step_id: str,
     payload: StepAskRequest,
+    lang: str = Query(default="zh"),
     db: Session = Depends(get_db),
 ):
     """卡住了问一句。"""
-    video = _load_video(video_id, db)
-    step = _load_step(video_id, step_id, db)
+    video = _load_video(video_id, db, lang)
+    step = _load_step(video_id, step_id, db, lang)
 
-    outcome = ask_step(step, payload.question.strip())
+    outcome = ask_step(step, payload.question.strip(), lang=lang)
 
     db.add(
         StepInteraction(

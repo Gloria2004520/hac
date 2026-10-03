@@ -209,3 +209,5 @@ failure is never dressed up as "nothing found". Free models may be rate-limited.
 
 Both services bind to localhost only; add user authentication, request limits and server-side secret
 management before deploying publicly.
+
+For local YouTube downloads, explicitly authorize Chrome login access and set `YT_DLP_COOKIE_BROWSER=chrome` in the local `.env`. macOS may request Keychain approval. This is opt-in, applies only to YouTube URLs, and is overridden by `YT_DLP_COOKIE_FILE`. Never commit browser credentials.

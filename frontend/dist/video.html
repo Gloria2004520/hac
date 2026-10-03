@@ -5,40 +5,45 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fbf6df">
   <title>教程视频 · 慢慢来</title>
+  <script src="/i18n.js"></script>
   <style>
     :root{--ink:#494638;--muted:#918a73;--yellow:#f8d65b;--paper:#fffdf7;--bg:#fcf9ed}*{box-sizing:border-box}body{margin:0;background:#ecebe5;color:var(--ink);font-family:'PingFang SC','Microsoft YaHei',sans-serif;-webkit-font-smoothing:antialiased}.page{width:100%;max-width:760px;min-height:100dvh;margin:auto;background:var(--bg);padding:22px clamp(18px,5vw,42px) 48px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:34px}.brand{font-size:19px;font-weight:750}.brand span{color:#b18c28;font-size:26px;margin-right:8px}.back{color:var(--ink);text-decoration:none;border:1px solid #ded6bd;border-radius:20px;padding:9px 14px;font-size:13px}.card{background:var(--paper);border:1px solid #eee7d2;border-radius:24px;padding:clamp(18px,5vw,32px);box-shadow:0 16px 55px #6457220c}.eyebrow{font-size:11px;letter-spacing:1.5px;color:#a18f58;margin:0 0 10px}.title{font-size:clamp(22px,5vw,32px);line-height:1.4;margin:0 0 8px}.meta{font-size:13px;color:var(--muted);margin-bottom:24px}.thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:17px;background:#eee8d9}.thumb[hidden],video[hidden],iframe[hidden]{display:none}.player-frame{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:17px;background:#222}.playback-label{font-size:11px;color:#8d7b48;margin:9px 2px 0}.status{margin-top:18px;padding:16px;background:#f6efd6;border-radius:14px}.status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}.track{height:8px;background:#e7dfc4;border-radius:10px;margin-top:13px;overflow:hidden}.bar{height:100%;width:0;background:var(--yellow);border-radius:10px;transition:width .35s}.error{background:#f8e5df;color:#9c493d}.note{color:var(--muted);font-size:12px;line-height:1.8;margin:18px 2px 0}.source{display:inline-block;color:#80681f;margin-top:14px;font-size:13px}video{display:block;width:100%;max-height:68vh;border-radius:17px;background:#222}.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.fact{background:#f4efdd;border-radius:10px;padding:7px 10px;font-size:11px;color:#82785e}@media(min-width:800px){body{padding:28px 0}.page{min-height:calc(100dvh - 56px);border-radius:30px}}
     .steps-cta{display:block;margin-top:20px;background:var(--yellow);color:#494638;text-decoration:none;border-radius:15px;padding:15px;text-align:center;font-weight:650;box-shadow:0 8px 22px #e0c45533}
+    .lang-switch{display:flex;align-items:center;border:1px solid #ded6bd;border-radius:20px;height:32px;background:#ffffff61;overflow:hidden;flex:0 0 auto}
+    .lang-switch button{min-height:28px;padding:0 11px;font-size:11.5px;color:var(--muted)}
+    .lang-switch button.on{background:var(--yellow);color:var(--ink);font-weight:650}
   </style>
 </head>
 <body>
   <main class="page">
-    <header class="top"><div class="brand"><span>✿</span>慢慢来</div><a class="back" href="/">返回聊天</a></header>
+    <header class="top"><div class="brand"><span>✿</span><span data-i18n="common.brand">慢慢来</span></div><div style="display:flex;gap:8px;align-items:center"><div class="lang-switch" role="group" aria-label="切换语言" data-i18n-aria="common.lang_aria"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></div><a class="back" href="/" data-i18n="common.back">返回聊天</a></div></header>
     <article class="card">
       <p class="eyebrow">DOWNLOADED TUTORIAL</p>
-      <h1 class="title" id="title">正在准备教程视频…</h1>
-      <div class="meta" id="meta">正在读取任务信息</div>
-      <iframe class="player-frame" id="remotePlayer" title="YouTube 原视频" allow="fullscreen; picture-in-picture; encrypted-media; autoplay" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
+      <h1 class="title" id="title" data-i18n="video.loading_title">正在准备教程视频…</h1>
+      <div class="meta" id="meta" data-i18n="video.loading_meta">正在读取任务信息</div>
+      <iframe class="player-frame" id="remotePlayer" title="YouTube 原视频" data-i18n-title="video.youtube_label" allow="fullscreen; picture-in-picture; encrypted-media; autoplay" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
       <img class="thumb" id="thumbnail" alt="" hidden>
       <video id="player" controls playsinline preload="metadata" hidden></video>
-      <div class="playback-label" id="playbackLabel">下载期间播放 YouTube 原视频</div>
+      <div class="playback-label" id="playbackLabel" data-i18n="video.playing_remote">下载期间播放 YouTube 原视频</div>
       <div class="status" id="statusBox" role="status" aria-live="polite">
-        <div class="status-row"><strong id="statusText">等待下载</strong><span id="progressText">0%</span></div>
+        <div class="status-row"><strong id="statusText" data-i18n="video.status_pending">等待下载</strong><span id="progressText">0%</span></div>
         <div class="track"><div class="bar" id="progressBar"></div></div>
       </div>
       <div class="facts" id="facts"></div>
-      <a class="source" id="source" target="_blank" rel="noopener noreferrer" hidden>打开 YouTube 原视频 ↗</a>
-      <a class="steps-cta" id="stepsCta" href="#" hidden>按步骤做 · 一步步来 →</a>
-      <p class="note">下载期间播放 YouTube 原视频；下载完成后会自动切换为后端保存的本地 MP4。请只下载你有权保存的公开视频。</p>
+      <a class="source" id="source" target="_blank" rel="noopener noreferrer" hidden data-i18n="video.open_source">打开 YouTube 原视频 ↗</a>
+      <a class="steps-cta" id="stepsCta" href="#" hidden data-i18n="video.steps_cta">按步骤做 · 一步步来 →</a>
+      <p class="note" data-i18n="video.note">下载期间播放 YouTube 原视频；下载完成后会自动切换为后端保存的本地 MP4。请只下载你有权保存的公开视频。</p>
     </article>
   </main>
   <script>
-    const labels={pending:'等待下载',inspecting:'正在读取视频信息',downloading:'正在下载',processing:'正在合并音视频',uploading:'正在保存',ready:'下载完成',failed:'下载失败'};
+    // 状态文案存 i18n key，按当前语言取；不认识的 status 原样显示
+    const labels={pending:'video.status_pending',inspecting:'video.status_inspecting',downloading:'video.status_downloading',processing:'video.status_processing',uploading:'video.status_uploading',ready:'video.status_ready',failed:'video.status_failed'};
     const params=new URLSearchParams(location.search);
     const id=params.get('id');
     // 带了 start&end 就只播这一段（从「一步步做」页点过来的）
     const clipStart=Number.parseFloat(params.get('start')),clipEnd=Number.parseFloat(params.get('end'));
     const hasClip=Number.isFinite(clipStart)&&Number.isFinite(clipEnd)&&clipEnd>clipStart;
-    let clipWaiting=false,clipPlaying=false;
+    let clipWaiting=false,clipPlaying=false,lastVideo=null;
     const $=name=>document.getElementById(name);
     let timer=null,playerLoaded=false,remoteLoaded=false;
     function formatDuration(seconds){if(!seconds&&seconds!==0)return '';const total=Math.max(0,Math.round(seconds));return Math.floor(total/60)+':'+String(total%60).padStart(2,'0')}
@@ -46,11 +51,11 @@
     function fail(message){clearTimeout(timer);$('statusBox').classList.add('error');$('statusText').textContent=message;$('progressText').textContent='';$('progressBar').style.width='0%'}
     function youtubeId(source){try{const url=new URL(source);if(url.hostname==='youtu.be')return url.pathname.slice(1);if(url.hostname.endsWith('youtube.com'))return url.searchParams.get('v')}catch{}return null}
     function showRemote(video){if(remoteLoaded||playerLoaded)return;const sourceId=youtubeId(video.source_url);if(sourceId){remoteLoaded=true;$('remotePlayer').src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(sourceId)+'?rel=0';$('remotePlayer').hidden=false;$('thumbnail').hidden=true}else if(video.thumbnail_url){$('thumbnail').src=video.thumbnail_url;$('thumbnail').hidden=false}}
-    function showLocal(){if(playerLoaded)return;playerLoaded=true;$('remotePlayer').src='about:blank';$('remotePlayer').hidden=true;$('thumbnail').hidden=true;$('player').src='/api/videos/'+encodeURIComponent(id)+'/content';$('player').hidden=false;$('playbackLabel').textContent='正在播放后端保存的本地 MP4';
-      if(hasClip){clipWaiting=true;$('playbackLabel').textContent='只播 '+formatDuration(clipStart)+'–'+formatDuration(clipEnd)+' 这一段，播完会停下';}}
-    function render(video){$('title').textContent=video.title||'正在读取视频标题…';$('meta').textContent=[video.uploader,formatDuration(video.duration_seconds)].filter(Boolean).join(' · ')||'YouTube 教程';$('source').href=video.source_url;$('source').hidden=false;$('stepsCta').href='/steps.html?id='+encodeURIComponent(id);$('stepsCta').hidden=false;showRemote(video);$('statusText').textContent=labels[video.status]||video.status;$('progressText').textContent=video.progress+'%';$('progressBar').style.width=video.progress+'%';$('facts').replaceChildren(...[formatDuration(video.duration_seconds),formatBytes(video.file_size),video.mime_type].filter(Boolean).map(value=>{const span=document.createElement('span');span.className='fact';span.textContent=value;return span}));if(video.status==='failed'){fail(video.error_message||'视频下载失败');return}if(video.status==='ready'){clearTimeout(timer);$('statusBox').hidden=true;showLocal();return}timer=setTimeout(load,1500)}
-    async function load(){try{const response=await fetch('/api/videos/'+encodeURIComponent(id),{cache:'no-store'});const raw=await response.text();let data;try{data=JSON.parse(raw)}catch{throw Error('视频服务返回了无法识别的响应，请重启前端服务')}if(!response.ok)throw Error(data.detail||data.error||'无法读取视频任务');render(data)}catch(error){fail(error.message)}}
-    if(!id||!/^[A-Za-z0-9-]{1,64}$/.test(id))fail('视频地址无效');else load();
+    function showLocal(){if(playerLoaded)return;playerLoaded=true;$('remotePlayer').src='about:blank';$('remotePlayer').hidden=true;$('thumbnail').hidden=true;$('player').src=I18N.api('/api/videos/'+encodeURIComponent(id)+'/content');$('player').hidden=false;$('playbackLabel').textContent=I18N.t('video.playing_local');
+      if(hasClip){clipWaiting=true;$('playbackLabel').textContent=I18N.t('video.clip_label',{range:formatDuration(clipStart)+'–'+formatDuration(clipEnd)})}}
+    function render(video){$('title').textContent=video.title||I18N.t('video.loading_title');$('meta').textContent=[video.uploader,formatDuration(video.duration_seconds)].filter(Boolean).join(' · ')||I18N.t('video.youtube_label');$('source').href=video.source_url;$('source').hidden=false;$('stepsCta').href='/steps.html?id='+encodeURIComponent(id);$('stepsCta').hidden=false;showRemote(video);$('statusText').textContent=labels[video.status]?I18N.t(labels[video.status]):video.status;$('progressText').textContent=video.progress+'%';$('progressBar').style.width=video.progress+'%';$('facts').replaceChildren(...[formatDuration(video.duration_seconds),formatBytes(video.file_size),video.mime_type].filter(Boolean).map(value=>{const span=document.createElement('span');span.className='fact';span.textContent=value;return span}));if(video.status==='failed'){fail(I18N.mapServer(video.error_message)||I18N.t('video.status_failed'));return}if(video.status==='ready'){clearTimeout(timer);$('statusBox').hidden=true;showLocal();return}timer=setTimeout(load,1500)}
+    async function load(){try{const response=await fetch(I18N.api('/api/videos/'+encodeURIComponent(id)),{cache:'no-store'});const raw=await response.text();let data;try{data=JSON.parse(raw)}catch{throw Error(I18N.t('video.readjson_bad'))}if(!response.ok)throw Error(I18N.mapServer(data.detail||data.error)||I18N.t('video.read_fail'));lastVideo=data;render(data)}catch(error){fail(error.message)}}
+    if(!id||!/^[A-Za-z0-9-]{1,64}$/.test(id))fail(I18N.t('video.bad_id'));else load();
 
     // 「只看这一段」：跳到起点，播到终点就停（用户手动再点播放则不受限制）
     $('player').addEventListener('loadedmetadata',()=>{
@@ -61,8 +66,12 @@
     });
     $('player').addEventListener('timeupdate',()=>{
       if(!clipPlaying)return;
-      if($('player').currentTime>=clipEnd){$('player').pause();clipPlaying=false;$('playbackLabel').textContent='这一段播完了 · '+formatDuration(clipStart)+'–'+formatDuration(clipEnd)}
+      if($('player').currentTime>=clipEnd){$('player').pause();clipPlaying=false;$('playbackLabel').textContent=I18N.t('video.clip_done',{range:formatDuration(clipStart)+'–'+formatDuration(clipEnd)})}
     });
+
+    // 双语：静态文案刷成当前语言 + 切换按钮接线；切语言后重新拉一次状态（文案跟着换）
+    I18N.apply();I18N.bootLanguageSwitch();document.title=I18N.t('video.title');
+    document.addEventListener('langchange',()=>{I18N.apply();document.title=I18N.t('video.title');if(lastVideo)render(lastVideo)});
   </script>
 </body>
 </html>

@@ -4,6 +4,7 @@ import re
 import shutil
 import tempfile
 import time
+from urllib.parse import urlparse
 from pathlib import Path
 
 import yt_dlp
@@ -112,6 +113,10 @@ def download_video(video_id: str) -> None:
         }
         if settings.yt_dlp_cookie_file:
             common_options["cookiefile"] = settings.yt_dlp_cookie_file
+        elif settings.yt_dlp_cookie_browser == "chrome":
+            host = (urlparse(video.source_url).hostname or "").lower()
+            if host in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
+                common_options["cookiesfrombrowser"] = ("chrome",)
         ffmpeg_path = _ffmpeg_location()
         if ffmpeg_path:
             common_options["ffmpeg_location"] = ffmpeg_path

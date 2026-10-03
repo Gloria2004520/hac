@@ -84,6 +84,8 @@ class TutorialBreakdown(Base):
     method: Mapped[str] = mapped_column(String(16), nullable=False, default="mock")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="ready")
     error_message: Mapped[str | None] = mapped_column(Text)
+    # 这次分解的卡片文字是用哪种语言生成的（?lang=en 重新分解会直接生成英文）
+    lang: Mapped[str] = mapped_column(String(8), nullable=False, default="zh")
 
     # 真读到的视频信息
     duration_seconds: Mapped[float | None] = mapped_column(Float)
@@ -135,6 +137,13 @@ class TutorialStep(Base):
     question: Mapped[str] = mapped_column(Text, nullable=False)
     criteria: Mapped[str] = mapped_column(Text, nullable=False)
     hint: Mapped[str | None] = mapped_column(Text)
+
+    # 英文翻译（?lang=en 第一次访问时惰性翻译并落库；NULL = 还没翻过，诚实退回中文）
+    en_title: Mapped[str | None] = mapped_column(Text)
+    en_summary: Mapped[str | None] = mapped_column(Text)
+    en_question: Mapped[str | None] = mapped_column(Text)
+    en_criteria: Mapped[str | None] = mapped_column(Text)
+    en_hint: Mapped[str | None] = mapped_column(Text)
 
     start_seconds: Mapped[float | None] = mapped_column(Float)
     end_seconds: Mapped[float | None] = mapped_column(Float)
