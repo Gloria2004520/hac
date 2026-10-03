@@ -27,7 +27,14 @@ const modelApiKey = process.env.MODEL_API_KEY || process.env.OPENROUTER_API_KEY 
 const modelName = process.env.MODEL_NAME || "inclusionai/ling-3.0-flash-sante:free";
 
 function requestIsSameOrigin(req) {
-  return !req.headers.origin || req.headers.origin === `http://${req.headers.host}`;
+  if (!req.headers.origin) return true;
+  try {
+    const origin = new URL(req.headers.origin);
+    return (origin.protocol === "http:" || origin.protocol === "https:")
+      && origin.host === req.headers.host;
+  } catch {
+    return false;
+  }
 }
 
 async function readBody(req, limit = 30_000) {
@@ -237,6 +244,10 @@ const reply = (res, status, data) => {
 http.createServer(async (req, res) => {
   const lang = langOf(req);
   const pathname = req.url.split("?")[0];
+  // 部署健康检查走完整链路：Node 能响应、FastAPI 与 SQLite 也都正常才算就绪。
+  if (req.method === "GET" && pathname === "/health") {
+    return proxyJson(res, "/api/health", { timeoutMs: 10_000 });
+  }
   if (req.method === "POST" && pathname === "/api/chat") {
     if (!requestIsSameOrigin(req)) {
       return reply(res, 403, { error: chatText("cross_site", lang) });

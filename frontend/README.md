@@ -25,6 +25,9 @@ root). It is also the API proxy: it handles `/api/chat` itself (calling the back
 internally), and forwards `/api/videos*`, `/api/saved-tutorials` and `/api/library` to `VIDEO_BACKEND_URL`
 unchanged. (`/api/search` is served by the backend only; the browser does not call it directly.)
 
+In the root Docker deployment, this service listens on Railway's injected `PORT`, proxies FastAPI at
+`http://127.0.0.1:8000`, and exposes `/health` only when the backend health check also succeeds.
+
 ## Install as an app (PWA)
 
 The pages are a PWA: `dist/manifest.webmanifest` plus `dist/sw.js`, with icons under

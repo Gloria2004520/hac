@@ -256,6 +256,19 @@ MODEL_NAME=你的模型名                # 步骤判定要用能看图的模型
 后端另外还提供 `GET /api/health`、`GET /api/search`、`GET /api/videos/{id}/playback`、
 `DELETE /api/videos/{id}`，完整文档在 `http://127.0.0.1:8000/docs`。
 
+## Railway 演示部署
+
+根目录的 `Dockerfile` 会在同一个容器里运行对外的 Node 服务和内部 FastAPI 服务，并已安装
+FFmpeg。Railway 会自动识别它。需要在服务变量中配置：
+
+- `MODEL_API_KEY` 或 `OPENROUTER_API_KEY`，用于聊天、画面描述和步骤检查。
+- 仅在覆盖默认免费模型时设置 `MODEL_NAME`。
+- 建议演示时设置 `MAX_VIDEO_HEIGHT=480`，下载和分解更轻、更快。
+
+为服务生成公开域名，把健康检查路径设为 `/health`，并将 Railway Volume 挂载到 `/data`，
+这样 SQLite、下载视频和代表画面在重启后仍会保留。不要把 API 密钥或导出的 YouTube Cookie
+提交到仓库。
+
 ## 手机 / PWA
 
 前端同时也是一个 PWA：手机上「添加到主屏幕」/「安装应用」即可全屏打开、有自己的图标

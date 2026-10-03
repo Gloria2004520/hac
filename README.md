@@ -272,6 +272,19 @@ else straight to FastAPI.
 The backend also exposes `GET /api/health`, `GET /api/search`, `GET /api/videos/{id}/playback` and
 `DELETE /api/videos/{id}`; the full reference is at `http://127.0.0.1:8000/docs`.
 
+## Railway demo deployment
+
+The root `Dockerfile` runs the public Node service and private FastAPI process in one container and
+includes FFmpeg. Railway detects it automatically. Configure these service variables:
+
+- `MODEL_API_KEY` or `OPENROUTER_API_KEY` for chat, frame captions and step checks.
+- `MODEL_NAME` only when overriding the default free model.
+- `MAX_VIDEO_HEIGHT=480` for a faster, lighter live demo.
+
+Generate a public domain, set the health-check path to `/health`, and mount a Railway volume at
+`/data` to preserve SQLite, downloaded videos and representative frames across restarts. Never put
+API keys or exported YouTube cookies in the repository.
+
 ## Phone / PWA
 
 The frontend is also a PWA: on a phone, "Add to Home Screen" / "Install app" and it opens full

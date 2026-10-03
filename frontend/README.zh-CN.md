@@ -19,6 +19,9 @@
 `/api/videos*`、`/api/saved-tutorials` 与 `/api/library` 原样转发给 `VIDEO_BACKEND_URL`。
 （`/api/search` 只由后端自己对外提供，浏览器不直接调它。）
 
+使用仓库根目录的 Docker 部署时，本服务监听 Railway 注入的 `PORT`，把 FastAPI 代理到
+`http://127.0.0.1:8000`；只有后端健康检查也成功时，公开的 `/health` 才会返回成功。
+
 ## 装成 App 用（PWA）
 
 这些页面就是一个 PWA：`dist/manifest.webmanifest` 加 `dist/sw.js`，图标在 `dist/icons/`。
