@@ -523,9 +523,11 @@
     }
 
     function applyNote(data) {
-      // 平时不再挂说明文字；只有「正在拆」「还在下载」这两种临时状态才说一句
-      const transient = data.analyzing || data.waiting;
-      if (!transient || !data.note) { $("mockNote").hidden = true; return; }
+      // 说明文字只挂一处，否则同一句话会出现两遍：
+      // - 页面还没内容时：#loading（正在拆）/ #emptyText（还在下载）负责显示，见 loadSteps
+      // - 旧步骤还挂在页面上、后台正在重拆：这里挂一条横幅
+      const banner = data.analyzing && steps.length > 0 && data.note;
+      if (!banner) { $("mockNote").hidden = true; return; }
       $("mockNote").className = "mock-note real";
       $("mockNote").textContent = data.note;
       $("mockNote").hidden = false;
@@ -578,8 +580,10 @@
           $("empty").hidden = true;
           $("body").hidden = true;
           $("loading").hidden = false;
-          $("loading").textContent = data.note || t("steps.loading");
           $("loading").className = "skeleton";
+          $("loading").textContent = data.note || t("steps.loading");
+          // textContent 会把里面的两个 span（文字 + 圆点动画）一起清掉，补回圆点
+          $("loading").appendChild(Object.assign(document.createElement("span"), { className: "dots" }));
         } else {
           notify(t("steps.regen_note_swap"));
         }

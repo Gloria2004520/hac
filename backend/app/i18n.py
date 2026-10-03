@@ -15,16 +15,16 @@ Lang = Literal["zh", "en"]
 STRINGS: dict[str, dict[str, str]] = {
     # ---- 步骤页的临时说明（_steps_response，每次请求现算，不落库）----
     "note.reanalyzing_skeleton": {
-        "zh": "下面这几步还是通用骨架。我正在按真实画面重新拆，一会儿会自动换掉，不用刷新。",
-        "en": "These steps are still the generic skeleton. I'm re-breaking the video down from the real frames and will swap them in automatically — no need to refresh.",
+        "zh": "下面这几步还是通用骨架。我正在照着真实画面重新拆，好了会自动换掉，不用刷新。",
+        "en": "These steps are still the generic skeleton. I'm redoing them from the real frames and will swap them in automatically — no need to refresh.",
     },
     "note.analyzing": {
-        "zh": "正在看画面。我会用 ffmpeg 找出画面真正切换的地方，再让看图的模型挨段看截图，可能要半分钟。",
-        "en": "Watching the frames now. I use ffmpeg to find where the picture actually cuts, then a vision model reads each segment's key frame — this can take about half a minute.",
+        "zh": "我先看一遍画面，把这段视频理成一步步的做法。稍等一下，大概半分钟。",
+        "en": "Let me go through the frames and turn this video into step-by-step instructions. Give me about half a minute.",
     },
     "note.waiting": {
-        "zh": "视频还在下载。下载完我会自动按画面把它拆成一步步，到时候刷新这一页就行。",
-        "en": "The video is still downloading. Once it's here I'll break it into steps from the frames automatically — just refresh this page then.",
+        "zh": "视频还在下载，下好之后我会自动把它拆成一步步。不用刷新，稍等一下就好。",
+        "en": "The video is still downloading. I'll break it into steps as soon as it's ready — no need to refresh, just give it a moment.",
     },
     "note.translation_unavailable": {
         "zh": "这一页的英文翻译暂时取不到（翻译服务没响应），先显示中文原文。",
