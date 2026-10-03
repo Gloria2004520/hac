@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     ffmpeg_location: str | None = None
     yt_dlp_cookie_file: str | None = None
     yt_dlp_cookie_browser: str | None = None
+    # 强制 yt-dlp 使用的 YouTube 客户端。数据中心 IP（Railway/Render 等）上不带 cookie
+    # 时，只有 android 系客户端能同时拿到元数据和可下载的媒体流（实测 android /
+    # android_vr 可用；web/mweb/tv 系被 SABR 流式或风控拦下）。⚠️ 且**必须不带 cookie**：
+    # 带 cookie 反而拿不到可下载格式（"The page needs to be reloaded" / 格式缺失）。
+    # 留空恢复 yt-dlp 默认行为（本地住宅 IP + cookie 的场景可以留空）。
+    yt_dlp_player_client: str = "android"
     allowed_video_domains: str = (
         "youtube.com,youtu.be,bilibili.com,b23.tv,tiktok.com,instagram.com"
     )
