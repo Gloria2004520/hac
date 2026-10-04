@@ -9,7 +9,7 @@
 //   - 静态资源（i18n.js、图标、manifest）用 stale-while-revalidate：
 //     先给缓存秒回，后台悄悄更新。
 
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL_CACHE = `slowly-shell-${VERSION}`;
 
 // 预缓存的应用外壳。改了这里任何一项，都要同步把 VERSION 往上升一位。

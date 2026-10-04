@@ -254,6 +254,15 @@
     "library.progress_start": { zh: "共 {n} 步 · 开始学习", en: "{n} steps · Start" },
     "library.error_title": { zh: "素材库暂时打不开", en: "The library isn't available right now" },
     "library.error_fallback": { zh: "暂时读不到素材库", en: "Couldn't load the library" },
+    "library.delete": { zh: "删除", en: "Delete" },
+    "library.delete_aria": { zh: "删除《{title}》", en: "Delete {title}" },
+    "library.deleting": { zh: "删除中…", en: "Deleting…" },
+    "library.delete_confirm": {
+      zh: "确定从你的素材库删除“{title}”吗？你的进度和备注会一起删除，其他用户不受影响。",
+      en: "Remove “{title}” from your library? Your progress and notes will also be deleted. Other users are not affected.",
+    },
+    "library.delete_done": { zh: "已从你的素材库删除", en: "Removed from your library" },
+    "library.delete_failed": { zh: "删除失败：{message}", en: "Couldn't delete: {message}" },
 
     // ---------- 步骤页（steps.html）----------
     "steps.title": { zh: "一步步做 · 慢慢来", en: "Step by step · Slowly" },

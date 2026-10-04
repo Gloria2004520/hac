@@ -202,7 +202,7 @@ All served as static files by the same Node service:
 | Page | What it does |
 | --- | --- |
 | `index.html` (`/`) | Chat home. You ask something, the assistant answers and searches YouTube live; tap a result for a preview modal, tap "教程分解" to create a download job. The composer sits directly above the shared navigation, and "saved to do slowly" remains visible even before anything is saved |
-| `library.html` | Material library. Uses the same 440 px app shell and warm yellow palette as Home and shows tutorials whose latest real breakdown completed successfully, with search and filters for cooking, everyday tools and other tutorials. The default free model classifies from the title and screenshot-derived step titles; keyword rules are the fallback. Neither implies whole-video understanding |
+| `library.html` | Material library. Uses the same 440 px app shell and warm yellow palette as Home and shows tutorials whose latest real breakdown completed successfully, with search, filters and a per-item delete button. Deleting removes only the current anonymous user's progress, notes and library link; shared video assets remain available to other users. The default free model classifies from the title and screenshot-derived step titles; keyword rules are the fallback. Neither implies whole-video understanding |
 | `video.html?id=` | One video. Plays the original YouTube video while downloading, then switches to the local MP4. With `?start=&end=` it plays just that segment (this is where "watch only this part" on the steps page goes) |
 | `steps.html?id=` | Step by step. Step strip + representative frame + "I did it" checkbox + "let the model check this step" + "ask when stuck"; you can save it, or re-break it down in one tap |
 
@@ -261,6 +261,7 @@ else straight to FastAPI.
 | GET | `/api/saved-tutorials` | The "saved to do slowly" list, with progress `step_total` / `step_done` |
 | GET | `/api/library` | Successfully broken-down materials, with category and step progress |
 | GET | `/api/videos/{id}` | Status of one job (download progress, whether it is saved) |
+| DELETE | `/api/videos/{id}` | Remove the current user's tutorial, progress and notes; delete shared assets only when no other user references them |
 | POST | `/api/videos/{id}/save` | Save it; call again to unsave |
 | GET | `/api/videos/{id}/content` | The downloaded local MP4 (supports Range) |
 | GET | `/api/videos/{id}/steps` | Fetch the steps. The first request kicks off a background breakdown |

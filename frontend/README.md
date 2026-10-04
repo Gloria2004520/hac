@@ -50,7 +50,7 @@ Clearing browser data or changing devices creates a new anonymous user.
 | Page | What it does |
 | --- | --- |
 | `dist/index.html` (`/`) | Chat home: ask, tap a suggested question to send it, preview YouTube results in a modal. The composer sits directly above the shared navigation, and "saved to do slowly" is always visible (also reachable from the ⋯ menu) |
-| `dist/library.html` | Material library: successful real breakdowns in a hand-drawn grid, searchable and filterable by cooking, everyday tools or other tutorials, using the same 440 px app shell and warm yellow palette as Home |
+| `dist/library.html` | Material library: successful real breakdowns in a hand-drawn grid, searchable and filterable by cooking, everyday tools or other tutorials, with a delete button on each item, using the same 440 px app shell and warm yellow palette as Home |
 | `dist/video.html?id=` | One video: plays the original YouTube video while downloading, then switches to the local MP4; `?start=&end=` plays only that segment |
 | `dist/steps.html?id=` | Step by step: step strip, representative frame, checks, Q&A, save, re-break-down |
 
@@ -59,6 +59,8 @@ Clearing browser data or changing devices creates a new anonymous user.
 - Chat home; tapping a suggested question sends it.
 - Each browser gets an anonymous identity. Videos and breakdowns can be reused, while saves, the
   library, progress, notes and check/Q&A history are isolated per anonymous user.
+- Deleting a library item removes that anonymous user's link, progress, notes and interactions. Shared
+  video assets remain available while another user still references the tutorial.
 - Chinese/English mode persists across Home, video, steps, the material library and the shared navigation.
 - A shared two-tab bottom navigation keeps Home and Material Library one tap away on every page. The library only lists tutorials whose latest real
   breakdown succeeded; failed generic skeletons are not presented as completed material. The default

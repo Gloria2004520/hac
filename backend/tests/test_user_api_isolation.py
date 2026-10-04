@@ -45,7 +45,7 @@ class UserApiIsolationTests(unittest.TestCase):
     def headers(self, user_id: str) -> dict[str, str]:
         return {"x-test-user": user_id}
 
-    def test_two_users_share_video_but_not_save_or_step_state(self):
+    def test_two_users_share_video_but_not_personal_state_or_deletion(self):
         payload = {
             "url": "https://www.youtube.com/watch?v=shared123",
             "source_platform": "youtube",
@@ -104,6 +104,29 @@ class UserApiIsolationTests(unittest.TestCase):
                 select(UserStepProgress).where(UserStepProgress.step_id == step_id)
             ).all()
             self.assertEqual({row.user_id for row in rows}, {"user-a", "user-b"})
+
+        deleted = self.client.delete(
+            f"/api/videos/{video_id}", headers=self.headers("user-a")
+        )
+        self.assertEqual(deleted.status_code, 204)
+        self.assertEqual(
+            self.client.get(
+                f"/api/videos/{video_id}", headers=self.headers("user-a")
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(
+                f"/api/videos/{video_id}", headers=self.headers("user-b")
+            ).status_code,
+            200,
+        )
+
+        with self.sessions() as db:
+            rows = db.scalars(
+                select(UserStepProgress).where(UserStepProgress.step_id == step_id)
+            ).all()
+            self.assertEqual({row.user_id for row in rows}, {"user-b"})
 
 
 if __name__ == "__main__":

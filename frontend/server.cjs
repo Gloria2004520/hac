@@ -434,6 +434,10 @@ http.createServer(async (req, res) => {
   if (req.method === "GET" && videoMatch) {
     return proxyJson(res, `/api/videos/${videoMatch[1]}`);
   }
+  if (req.method === "DELETE" && videoMatch) {
+    if (!requestIsSameOrigin(req)) return reply(res, 403, { error: "不允许跨站请求" });
+    return proxyJson(res, `/api/videos/${videoMatch[1]}`, { method: "DELETE" });
+  }
 
   // 存下来 / 取消存
   const saveMatch = pathname.match(/^\/api\/videos\/([A-Za-z0-9-]{1,64})\/save$/);
